@@ -9,7 +9,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "RH_SettingsNode": "RH Settings Node",
-    "RH_NodeInfoListNode": "RH Node Info List Node",
-    "RH_ExecuteNode": "RH Execute Node",
+    "RH_SettingsNode": "RH Settings",
+    "RH_NodeInfoListNode": "RH Node Info List",
+    "RH_ExecuteNode": "RH Execute",
 }

@@ -1,10 +1,11 @@
 import requests
 import time
 import json
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 import numpy as np
 import torch
+import os  # 确保导入 os 库
 
 class ExecuteNode:
     def __init__(self):
@@ -19,7 +20,9 @@ class ExecuteNode:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", )  # 仅定义返回类型为 IMAGE
+    RETURN_TYPES = ("IMAGE",)  # 支持单张和多张图片输出
+    RETURN_NAMES = ("images",)  # 定义返回名称，与 ComfyUI 的预期匹配
+
     CATEGORY = "RunningHub"
     FUNCTION = "process"  # 指向 process 方法
 
@@ -58,8 +61,16 @@ class ExecuteNode:
             time.sleep(2)  # 每 2 秒检查一次任务状态
             task_status_result = self.check_task_status(task_id, apiConfig["apiKey"])
             print(f"Task info, taskId: {task_id}, status: {task_status_result}")
-            task_status = task_status_result.get("taskStatus", "unknown")  # 从结果中获取任务状态
-            if task_status != "RUNNING":
+
+            if isinstance(task_status_result, dict):
+                task_status = task_status_result.get("taskStatus", "unknown")  # 从结果中获取任务状态
+            elif isinstance(task_status_result, list):
+                # 假设任务完成后返回的数据列表表示任务成功
+                task_status = "success"
+            else:
+                task_status = "unknown"
+
+            if task_status not in ["RUNNING", "success"]:
                 print(f"Task failed or completed with status: {task_status}")
                 break
 
@@ -154,7 +165,7 @@ class ExecuteNode:
         # 检查 'data' 是否存在并且是列表类型
         if result.get("data") and isinstance(result["data"], list):
             if len(result["data"]) > 0:
-                return result["data"][0]  # 假设列表中的第一个元素
+                return result["data"]  # 返回整个列表
             else:
                 return {"taskStatus": "RUNNING"}  # 如果 data 是空列表，任务仍在运行
         else:
@@ -171,54 +182,71 @@ class ExecuteNode:
         
         image_urls = []
         
-        # 确保 task_status_result 是字典类型
+        # 确保 task_status_result 是字典或列表
         if isinstance(task_status_result, dict):
             # 检查 fileUrl 和 fileType
             file_url = task_status_result.get("fileUrl")
             file_type = task_status_result.get("fileType")
             if file_url and file_type.lower() in ["png", "jpg", "jpeg"]:
-                image_urls.append(file_url)  # 添加到 images 列表
+                image_urls.append(file_url)
         elif isinstance(task_status_result, list):
             for output in task_status_result:
                 if isinstance(output, dict):
                     file_url = output.get("fileUrl")
                     file_type = output.get("fileType")
                     if file_url and file_type.lower() in ["png", "jpg", "jpeg"]:
-                        image_urls.append(file_url)  # 添加到 images 列表
-
+                        image_urls.append(file_url)
+        
         if not image_urls:
             raise Exception("No valid image output found.")
         
-        # 假设只有一张图，可以根据需要扩展
-        image_data = None
-        if image_urls:
-            print("Downloading image from URL:", image_urls[0])  # 记录图像 URL
-            image_data = self.download_image(image_urls[0])  # 下载并处理图像
+        # 下载并处理所有图像
+        image_data_list = []
+        for url in image_urls:
+            print("Downloading image from URL:", url)  # 记录图像 URL
+            image_tensor = self.download_image(url)  # 下载并处理图像
             print("Image downloaded and processed successfully.")
+            
+            # 打印张量信息，避免在 uint8 上调用 mean()
+            print(f"Image tensor shape: {image_tensor.shape}")
+            mean_val = image_tensor.mean()
+            print(f"Image tensor min: {image_tensor.min()}, max: {image_tensor.max()}, mean: {mean_val}")
+            
+            # 确保返回的是 torch.Tensor
+            if not isinstance(image_tensor, torch.Tensor):
+                raise TypeError(f"Expected torch.Tensor, got {type(image_tensor)}")
+            
+            image_data_list.append(image_tensor)
         
-        return (image_data, )  # 返回一个元组，匹配 RETURN_TYPES
+        print(f"Returning {len(image_data_list)} images.")
+        return (image_data_list,)  # 返回一个包含图像列表的元组，与 RETURN_TYPES 和 RETURN_NAMES 匹配
 
     def download_image(self, image_url):
         """
         从 URL 下载图像并转换为适合预览或保存的 torch.Tensor 格式。
         """
         response = requests.get(image_url)
+
         if response.status_code == 200:
             img = Image.open(BytesIO(response.content)).convert("RGB")
+                        
+            # 转换为 numpy 数组并调整数据类型和范围
             img_array = np.array(img).astype(np.float32) / 255.0  # 归一化到 [0, 1]
-            img_tensor = torch.from_numpy(img_array).unsqueeze(0)  # 形状 (1, H, W, C)
-            img_tensor = img_tensor.contiguous()
+            
+            # **保持形状为 [H, W, C]，不进行 permute 操作**
+            img_tensor = torch.from_numpy(img_array)  # 形状 [H, W, C]
             
             # 打印图像尺寸
-            print(f"Downloaded image dimensions: {img_tensor.shape}")  # 打印图像形状
+            print(f"Downloaded image dimensions: {img_tensor.shape}")  # 例如 (高度, 宽度, 3)
             
             return img_tensor
+
         else:
             raise Exception(f"Failed to download image: {image_url}")
 
     def download_video(self, video_url):
         """
-        从 URL 下��视频。
+        从 URL 下载视频。
         根据 ComfyUI 的要求实现此方法。
         """
         response = requests.get(video_url, stream=True)
