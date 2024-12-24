@@ -17,5 +17,6 @@ git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICal
 
 ![image](https://github.com/user-attachments/assets/3b00beeb-1d0d-4fc2-b635-d31cfcf06887)
 
-本地工作流与RunningHub工作流节点对应关系与配置说明
+本地工作流与RunningHub工作流节点对应关系与配置说明。
+通过NodeInfolist节点，可以修改RH工作流每个节点的值。比如常见的提示词，种子，生成批次等
 ![image](https://github.com/user-attachments/assets/e6d76026-13bb-4ee7-8bcf-2cbc64a046ce)
