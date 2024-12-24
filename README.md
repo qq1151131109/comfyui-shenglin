@@ -1,1 +1,1 @@
-"# ComfyUI_RH_APICall" 
+这是一款ComfyUI插件，用于在本地ComfyUI环境中便捷地调用和执行RunningHub上的工作流。
