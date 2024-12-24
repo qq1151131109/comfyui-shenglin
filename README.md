@@ -15,8 +15,12 @@ git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICal
 ### 3. 在 ComfyUI 中调用 RunningHub 上的个人工作流
 完成安装和配置后，你就可以在本地的 ComfyUI 环境中调用 RunningHub 上的个人工作流了。请把示例中的相关配置参数改成你自己的。
 
-![image](https://github.com/user-attachments/assets/3b00beeb-1d0d-4fc2-b635-d31cfcf06887)
-
-本地工作流与RunningHub工作流节点对应关系与配置说明。
+### 4. 本地工作流与RunningHub工作流节点对应关系与配置说明。
 通过NodeInfolist节点，可以修改RH工作流每个节点的值。比如常见的提示词，种子，生成批次等
 ![image](https://github.com/user-attachments/assets/e6d76026-13bb-4ee7-8bcf-2cbc64a046ce)
+
+### 5. 实例(工作流json在examples目录下)
+#### 文生图：
+![image](https://github.com/user-attachments/assets/3b00beeb-1d0d-4fc2-b635-d31cfcf06887)
+#### 混元文生视频：
+![image](https://github.com/user-attachments/assets/ed7cca06-f8cb-4eda-9dd8-c56464fd2414)
