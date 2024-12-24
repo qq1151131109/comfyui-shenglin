@@ -13,6 +13,6 @@ git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICal
 访问 [RunningHub 官网](https://www.runninghub.cn) 注册账户并获取你的 API Key。
 
 ### 3. 在 ComfyUI 中调用 RunningHub 上的个人工作流
-完成安装和配置后，你就可以在本地的 ComfyUI 环境中调用 RunningHub 上的个人工作流了。
+完成安装和配置后，你就可以在本地的 ComfyUI 环境中调用 RunningHub 上的个人工作流了。请把示例中的相关配置参数改成你自己的。
 
 ![image](https://github.com/user-attachments/assets/3b00beeb-1d0d-4fc2-b635-d31cfcf06887)
