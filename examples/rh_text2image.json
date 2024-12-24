@@ -1,0 +1,403 @@
+{
+  "last_node_id": 32,
+  "last_link_id": 22,
+  "nodes": [
+    {
+      "id": 24,
+      "type": "GR85_IntToString",
+      "pos": [
+        -322,
+        1184
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "integer_value",
+          "type": "INT",
+          "link": 11,
+          "widget": {
+            "name": "integer_value"
+          },
+          "label": "integer_value"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "string_value",
+          "type": "STRING",
+          "links": [
+            12
+          ],
+          "shape": 3,
+          "label": "string_value",
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GR85_IntToString"
+      },
+      "widgets_values": [
+        0
+      ]
+    },
+    {
+      "id": 18,
+      "type": "RH_NodeInfoListNode",
+      "pos": [
+        66,
+        1291
+      ],
+      "size": {
+        "0": 330,
+        "1": 106
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "previousNodeInfoList",
+          "type": "ARRAY",
+          "link": null,
+          "label": "previousNodeInfoList"
+        },
+        {
+          "name": "fieldValue",
+          "type": "STRING",
+          "link": 12,
+          "widget": {
+            "name": "fieldValue"
+          },
+          "slot_index": 1,
+          "label": "fieldValue"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ARRAY",
+          "type": "ARRAY",
+          "links": [
+            13
+          ],
+          "shape": 3,
+          "label": "ARRAY",
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_NodeInfoListNode"
+      },
+      "widgets_values": [
+        25,
+        "noise_seed",
+        "ice"
+      ]
+    },
+    {
+      "id": 17,
+      "type": "RH_NodeInfoListNode",
+      "pos": [
+        68,
+        1440
+      ],
+      "size": {
+        "0": 330,
+        "1": 106
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "previousNodeInfoList",
+          "type": "ARRAY",
+          "link": 13,
+          "label": "previousNodeInfoList"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ARRAY",
+          "type": "ARRAY",
+          "links": [
+            18
+          ],
+          "shape": 3,
+          "label": "ARRAY",
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_NodeInfoListNode"
+      },
+      "widgets_values": [
+        45,
+        "prompt",
+        "土星环"
+      ]
+    },
+    {
+      "id": 28,
+      "type": "RH_NodeInfoListNode",
+      "pos": [
+        67,
+        1591
+      ],
+      "size": {
+        "0": 330,
+        "1": 106
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "previousNodeInfoList",
+          "type": "ARRAY",
+          "link": 18,
+          "label": "previousNodeInfoList"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ARRAY",
+          "type": "ARRAY",
+          "links": [
+            21
+          ],
+          "shape": 3,
+          "label": "ARRAY",
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_NodeInfoListNode"
+      },
+      "widgets_values": [
+        5,
+        "batch_size",
+        "2"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "easy seed",
+      "pos": [
+        -325,
+        1298
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": [
+            11
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "easy seed"
+      },
+      "widgets_values": [
+        497954776275195,
+        "randomize"
+      ]
+    },
+    {
+      "id": 30,
+      "type": "RH_ExecuteNode",
+      "pos": [
+        551,
+        1315
+      ],
+      "size": {
+        "0": 315,
+        "1": 102
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apiConfig",
+          "type": "STRUCT",
+          "link": 20,
+          "label": "apiConfig"
+        },
+        {
+          "name": "nodeInfoList",
+          "type": "ARRAY",
+          "link": 21,
+          "label": "nodeInfoList"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            22
+          ],
+          "shape": 3,
+          "label": "images",
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_ExecuteNode"
+      },
+      "widgets_values": [
+        600,
+        2
+      ]
+    },
+    {
+      "id": 27,
+      "type": "SaveImage",
+      "pos": [
+        957,
+        1049
+      ],
+      "size": {
+        "0": 545.910400390625,
+        "1": 761.0469360351562
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 22,
+          "label": "图像"
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "RH_SettingsNode",
+      "pos": [
+        72,
+        1132
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRUCT",
+          "type": "STRUCT",
+          "links": [
+            20
+          ],
+          "shape": 3,
+          "label": "STRUCT",
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_SettingsNode"
+      },
+      "widgets_values": [
+        "https://www.runninghub.cn",
+        "ed37fbdd79c34a7ca612aedbe5cea13e",
+        "1866574464472215553"
+      ]
+    }
+  ],
+  "links": [
+    [
+      11,
+      19,
+      0,
+      24,
+      0,
+      "INT"
+    ],
+    [
+      12,
+      24,
+      0,
+      18,
+      1,
+      "STRING"
+    ],
+    [
+      13,
+      18,
+      0,
+      17,
+      0,
+      "ARRAY"
+    ],
+    [
+      18,
+      17,
+      0,
+      28,
+      0,
+      "ARRAY"
+    ],
+    [
+      20,
+      9,
+      0,
+      30,
+      0,
+      "STRUCT"
+    ],
+    [
+      21,
+      28,
+      0,
+      30,
+      1,
+      "ARRAY"
+    ],
+    [
+      22,
+      30,
+      0,
+      27,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8769226950000005,
+      "offset": [
+        693.6169748568583,
+        -752.1425006147842
+      ]
+    },
+    "ue_links": []
+  },
+  "version": 0.4
+}
