@@ -18,6 +18,10 @@ class ExecuteNode:
                 "apiConfig": ("STRUCT",),  # 设置节点的输入
                 "nodeInfoList": ("ARRAY", {"default": []}),  # NodeInfoList节点的输出
             },
+            "optional": {
+                "run_timeout": ("INT", {"default": 600}),       # 最大运行超时时间（秒）
+                "query_interval": ("INT", {"default": 10}),      # 查询间隔时间（秒）
+            },
         }
 
     RETURN_TYPES = ("IMAGE",)  # 支持单张和多张图片输出
@@ -26,28 +30,38 @@ class ExecuteNode:
     CATEGORY = "RunningHub"
     FUNCTION = "process"  # 指向 process 方法
 
-    def process(self, apiConfig, nodeInfoList):
+    def process(self, apiConfig, nodeInfoList, run_timeout=600, query_interval=2):
+        # Ensure query_interval is not less than 2
+        if query_interval < 2:
+            print("Query interval is too low, setting to minimum value of 2 seconds.")
+            query_interval = 2
+
         """
         该节点通过调用 RunningHub API 创建任务并返回生成的图片链接。
         """
         # 打印请求数据，方便调试
         print(f"API request data: {apiConfig}")
         print(f"Node info list: {nodeInfoList}")
+        print(f"Run timeout: {run_timeout} seconds")
+        print(f"Query interval: {query_interval} seconds")
 
         # 1. 查询账户状态，检查是否可以提交任务
-        account_status = self.check_account_status(apiConfig["apiKey"])
+        account_status = self.check_account_status(apiConfig["apiKey"], apiConfig["base_url"])
         if int(account_status["currentTaskCounts"]) > 0:
             print("There are tasks running, waiting for them to finish.")
-            # 等待最多 10 分钟，如果任务未完成，则超时
+            # 等待最多 run_timeout 秒，如果任务未完成，则超时
             start_time = time.time()
-            while account_status["currentTaskCounts"] > 0 and time.time() - start_time < 600:
-                time.sleep(2)  # 每 2 秒查询一次
-                account_status = self.check_account_status(apiConfig["apiKey"])
+            while account_status["currentTaskCounts"] > 0 and time.time() - start_time < run_timeout:
+                time.sleep(query_interval)  # 每 query_interval 秒查询一次
+                account_status = self.check_account_status(apiConfig["apiKey"], apiConfig["base_url"])
             if int(account_status["currentTaskCounts"]) > 0:
-                raise Exception("Timeout: There are still running tasks after 10 minutes.")
+                raise Exception(f"Timeout: There are still running tasks after {run_timeout} seconds.")
 
+        # Print nodeInfoList for debugging
+        print(f"ExecuteNode NodeInfoList: {nodeInfoList}")
+        
         # 2. 创建任务
-        task_creation_result = self.create_task(apiConfig, nodeInfoList)
+        task_creation_result = self.create_task(apiConfig, nodeInfoList, apiConfig["base_url"])
         if task_creation_result["code"] != 0:
             raise Exception(f"Task creation failed: {task_creation_result['msg']}")
 
@@ -56,10 +70,11 @@ class ExecuteNode:
         print(f"Task created successfully, taskId: {task_id}, status: {task_status}")
 
         # 3. 查询任务状态直到任务完成
+        task_start_time = time.time()
         while task_status != "success":
-            print(f"Task still running, checking again in 2 seconds...")
-            time.sleep(2)  # 每 2 秒检查一次任务状态
-            task_status_result = self.check_task_status(task_id, apiConfig["apiKey"])
+            print(f"Task still running, checking again in {query_interval} seconds...")
+            time.sleep(query_interval)  # 每 query_interval 秒检查一次任务状态
+            task_status_result = self.check_task_status(task_id, apiConfig["apiKey"], apiConfig["base_url"])
             print(f"Task info, taskId: {task_id}, status: {task_status_result}")
 
             if isinstance(task_status_result, dict):
@@ -74,14 +89,18 @@ class ExecuteNode:
                 print(f"Task failed or completed with status: {task_status}")
                 break
 
-        # 4. 任务完成，处理输出
-        return self.process_task_output(task_id, apiConfig["apiKey"])
+            # 检查是否超过 run_timeout
+            if time.time() - task_start_time > run_timeout:
+                raise Exception(f"Timeout: Task {task_id} did not complete within {run_timeout} seconds.")
 
-    def check_account_status(self, api_key):
+        # 4. 任务完成，处理输出
+        return self.process_task_output(task_id, apiConfig["apiKey"], apiConfig["base_url"])
+
+    def check_account_status(self, api_key, base_url):
         """
         查询账户状态，检查是否可以提交新任务
         """
-        url = "https://www.runninghub.cn/uc/openapi/accountStatus"
+        url = f"{base_url}/uc/openapi/accountStatus"
         headers = {
             "User-Agent": "Apifox/1.0.0 (https://apifox.com)",
             "Content-Type": "application/json",
@@ -103,11 +122,11 @@ class ExecuteNode:
         result["data"]["currentTaskCounts"] = current_task_counts
         return result["data"]
 
-    def create_task(self, apiConfig, nodeInfoList):
+    def create_task(self, apiConfig, nodeInfoList, base_url):
         """
         创建任务
         """
-        url = "https://www.runninghub.cn/task/openapi/create"
+        url = f"{apiConfig['base_url']}/task/openapi/create"
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "Apifox/1.0.0 (https://apifox.com)",
@@ -128,11 +147,11 @@ class ExecuteNode:
         response = requests.post(url, json=data, headers=headers)
         return response.json()
 
-    def check_task_status(self, task_id, api_key):
+    def check_task_status(self, task_id, api_key, base_url):
         """
         查询任务状态
         """
-        url = "https://www.runninghub.cn/task/openapi/outputs"
+        url = f"{base_url}/task/openapi/outputs"
         headers = {
             "User-Agent": "Apifox/1.0.0 (https://apifox.com)",
             "Content-Type": "application/json",
@@ -167,15 +186,15 @@ class ExecuteNode:
             if len(result["data"]) > 0:
                 return result["data"]  # 返回整个列表
             else:
-                return {"taskStatus": "RUNNING"}  # 如果 data 是空列表，任务仍在运行
+                return {"taskStatus": "RUNNING"}  # 如果 data ��空列表，任务仍在运行
         else:
             return {"taskStatus": "RUNNING"}  # 如果 data 是 None，任务仍在运行
 
-    def process_task_output(self, task_id, api_key):
+    def process_task_output(self, task_id, api_key, base_url):
         """
         处理任务输出，返回文件链接。
         """
-        task_status_result = self.check_task_status(task_id, api_key)
+        task_status_result = self.check_task_status(task_id, api_key, base_url)
         
         # 记录任务状态结果以了解其结构
         print("Task Status Result:", json.dumps(task_status_result, indent=4, ensure_ascii=False))

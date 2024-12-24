@@ -2,6 +2,8 @@ class NodeInfoListNode:
     def __init__(self):
         # 初始化一个空的 node_info_list，用于存储所有的 nodeInfo
         self.node_info_list = []
+        print(f"NodeInfoListNode __init__ NodeInfoList: {self.node_info_list}")
+
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -25,11 +27,10 @@ class NodeInfoListNode:
         该节点允许用户配置多个 nodeId、fieldName 和 fieldValue 参数，
         并将多个 nodeInfoList 输出为数组。支持串联，多个节点将合并成一个数组。
         """
-        
+        self.node_info_list = []
         # 输出调试信息，查看 previousNodeInfoList
         print(f"Processing nodeId: {nodeId}, fieldName: {fieldName}, fieldValue: {fieldValue}")
         print(f"previousNodeInfoList: {previousNodeInfoList}")
-        
         # 当前的 node_info
         node_info = {"nodeId": nodeId, "fieldName": fieldName, "fieldValue": fieldValue}
 
