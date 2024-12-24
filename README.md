@@ -1,6 +1,6 @@
 # ComfyUI 插件：调用和执行 RunningHub 工作流
 
-该插件用于在本地 ComfyUI 环境中便捷地调用和执行 RunningHub 上的工作流。它是对 [RunningHub API 文档](https://gold-spleen-bf1.notion.site/RunningHub-API-1432ece0cf5f8026aaa8e4b9190f6f8e) 的一个 ComfyUI 实现。如果你希望扩展该插件，或在使用过程中遇到问题，请参考上述文档。
+该插件用于在本地 ComfyUI 环境中便捷地调用和执行 RunningHub 上的工作流。它是对 [RunningHub API 文档](https://gold-spleen-bf1.notion.site/RunningHub-API-1432ece0cf5f8026aaa8e4b9190f6f8e) 的一个 ComfyUI 实现。在使用本插件之前建议花2分钟阅读。如果你希望扩展该插件，或在使用过程中遇到问题，请参考上述文档。
 
 ## 使用步骤
 
