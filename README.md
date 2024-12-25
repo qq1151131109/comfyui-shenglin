@@ -22,5 +22,7 @@ git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICal
 ### 5. 实例(工作流json在examples目录下)
 #### 文生图：
 ![image](https://github.com/user-attachments/assets/3b00beeb-1d0d-4fc2-b635-d31cfcf06887)
+#### 图生图：
+![image](https://github.com/user-attachments/assets/552bf53c-8913-474e-838a-c110e9dbc6d0)
 #### 混元文生视频：
 ![image](https://github.com/user-attachments/assets/ed7cca06-f8cb-4eda-9dd8-c56464fd2414)
