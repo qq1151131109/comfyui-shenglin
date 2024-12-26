@@ -21,7 +21,7 @@ class ImageUploaderNode:
 
     RETURN_TYPES = ("STRING",)  # 输出类型为字符串
     RETURN_NAMES = ("filename",)  # 输出名称为 filename
-    CATEGORY = "Utility"  # 节点类别
+    CATEGORY = "RunningHub"  # 节点类别
     FUNCTION = "process"  # 指定处理方法
 
     def process(self, image: torch.Tensor, apiConfig: dict) -> tuple:
