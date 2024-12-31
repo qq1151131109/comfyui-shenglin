@@ -2,8 +2,6 @@ class NodeInfoListNode:
     def __init__(self):
         # 初始化一个空的 node_info_list，用于存储所有的 nodeInfo
         self.node_info_list = []
-        print(f"NodeInfoListNode __init__ NodeInfoList: {self.node_info_list}")
-
 
     @classmethod
     def INPUT_TYPES(cls):

@@ -176,19 +176,29 @@ class ExecuteNode:
 
         result = response.json()
         
-        # 检查 'code' 和 'msg' 字段
-        if result.get("code") != 0:
-            # 如果任务正在运行，返回一个特定的状态
-            if result.get("msg") == "APIKEY_TASK_IS_RUNNING":
-                return {"taskStatus": "RUNNING"}
-        # 检查 'data' 是否存在并且是列表类型
+        # 检查是否有数据结果
         if result.get("data") and isinstance(result["data"], list):
             if len(result["data"]) > 0:
-                return result["data"]  # 返回整个列表
+                return result["data"]  # 返回整个列表，表示任务成功并且有结果
             else:
-                return {"taskStatus": "RUNNING"}  # 如果 data ��空列表，任务仍在运行
-        else:
-            return {"taskStatus": "RUNNING"}  # 如果 data 是 None，任务仍在运行
+                # data 是空列表，可能是任务还在运行，或出错
+                if result.get("code") != 0:
+                    msg = result.get("msg")
+                    if msg != "APIKEY_TASK_IS_RUNNING":
+                        return {"error": msg}  # 出现了错误，返回错误信息
+                    else:
+                        return {"taskStatus": "RUNNING"}  # 任务仍在运行
+                return {"taskStatus": "RUNNING"}  # 如果没有其他信息，认为任务在运行中
+
+        # 如果没有 data 字段或 data 不是列表，检查任务状态
+        if result.get("code") != 0:
+            msg = result.get("msg")
+            if msg != "APIKEY_TASK_IS_RUNNING":
+                return {"error": msg}  # 返回错误信息
+            else:
+                return {"taskStatus": "RUNNING"}  # 任务仍在运行
+
+        return {"taskStatus": "UNKNOWN_ERROR"}
 
     def process_task_output(self, task_id, api_key, base_url):
         """

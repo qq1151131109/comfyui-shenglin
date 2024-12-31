@@ -87,17 +87,20 @@ class ImageUploaderNode:
         # 将 PIL 图像保存到 BytesIO 缓冲区
         buffer = BytesIO()
         image_pil.save(buffer, format='PNG')  # 可以根据需要选择 'JPEG' 或其他格式
+        # 先获取缓冲区大小
+        buffer_size = buffer.tell()
+        # 然后重置指针到开头
         buffer.seek(0)
         print("Saved PIL Image to BytesIO buffer.")
 
+        # 打印图像大小，以 MB 为单位
+        buffer_size_mb = buffer_size / (1024 * 1024)
+        print(f"Image size: {buffer_size_mb:.2f} MB")
+
         # 检查图像大小是否超过 10MB
-        buffer_size = buffer.tell()  # 当前缓冲区位置即为缓冲区大小（字节）
         max_size_bytes = 10 * 1024 * 1024  # 10MB
-        print(f"Image size: {buffer_size} bytes")
-
         if buffer_size > max_size_bytes:
-            raise Exception(f"Image size {buffer_size / (1024 * 1024):.2f}MB exceeds the 10MB limit.")
-
+            raise Exception(f"Image size {buffer_size_mb:.2f}MB exceeds the 10MB limit.")
 
         # 准备 multipart/form-data
         files = {
@@ -146,4 +149,3 @@ class ImageUploaderNode:
         print(f"Uploaded filename: {filename}")
 
         return (filename,)
-
