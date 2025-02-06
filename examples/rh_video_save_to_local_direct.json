@@ -1,0 +1,220 @@
+{
+  "last_node_id": 53,
+  "last_link_id": 42,
+  "nodes": [
+    {
+      "id": 9,
+      "type": "RH_SettingsNode",
+      "pos": [
+        66,
+        1357
+      ],
+      "size": {
+        "0": 502.25048828125,
+        "1": 137.3893280029297
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRUCT",
+          "type": "STRUCT",
+          "links": [
+            33
+          ],
+          "slot_index": 0,
+          "shape": 3,
+          "label": "STRUCT"
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_SettingsNode"
+      },
+      "widgets_values": [
+        "https://www.runninghub.cn",
+        "ed37fbdd79c34a7ca612aedbe5cea13e",
+        "1887510793653780481"
+      ]
+    },
+    {
+      "id": 43,
+      "type": "RH_ExecuteNode",
+      "pos": [
+        635,
+        1367
+      ],
+      "size": {
+        "0": 315,
+        "1": 102
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apiConfig",
+          "type": "STRUCT",
+          "link": 33,
+          "label": "apiConfig"
+        },
+        {
+          "name": "nodeInfoList",
+          "type": "ARRAY",
+          "link": null,
+          "label": "nodeInfoList",
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [],
+          "shape": 3,
+          "label": "images",
+          "slot_index": 0
+        },
+        {
+          "name": "videos",
+          "type": "VIDEO",
+          "links": [
+            36
+          ],
+          "shape": 3,
+          "label": "videos",
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_ExecuteNode"
+      },
+      "widgets_values": [
+        600,
+        10
+      ]
+    },
+    {
+      "id": 44,
+      "type": "easy showAnythingLazy",
+      "pos": [
+        992,
+        1373
+      ],
+      "size": {
+        "0": 210,
+        "1": 26
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "type": "*",
+          "link": 36,
+          "label": "anything"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": [
+            39
+          ],
+          "shape": 3,
+          "label": "output",
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "easy showAnythingLazy"
+      }
+    },
+    {
+      "id": 47,
+      "type": "ShowText|pysssss",
+      "pos": [
+        584,
+        1572
+      ],
+      "size": {
+        "0": 347.5731201171875,
+        "1": 242.42494201660156
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 39,
+          "widget": {
+            "name": "text"
+          },
+          "label": "文本"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null,
+          "shape": 6,
+          "label": "字符串"
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "",
+        "output\\RH_output_video_1738853689.mp4"
+      ]
+    }
+  ],
+  "links": [
+    [
+      33,
+      9,
+      0,
+      43,
+      0,
+      "STRUCT"
+    ],
+    [
+      36,
+      43,
+      1,
+      44,
+      0,
+      "*"
+    ],
+    [
+      39,
+      44,
+      0,
+      47,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.0610764609500007,
+      "offset": [
+        143.41590852037982,
+        -895.2557214802658
+      ]
+    },
+    "ue_links": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0
+  },
+  "version": 0.4
+}

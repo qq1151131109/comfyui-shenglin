@@ -1,61 +1,7 @@
 {
-  "last_node_id": 42,
-  "last_link_id": 32,
+  "last_node_id": 44,
+  "last_link_id": 34,
   "nodes": [
-    {
-      "id": 17,
-      "type": "RH_NodeInfoListNode",
-      "pos": [
-        68,
-        1440
-      ],
-      "size": {
-        "0": 330,
-        "1": 106
-      },
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "previousNodeInfoList",
-          "type": "ARRAY",
-          "link": null,
-          "label": "previousNodeInfoList",
-          "shape": 7
-        },
-        {
-          "name": "fieldValue",
-          "type": "STRING",
-          "link": 32,
-          "widget": {
-            "name": "fieldValue"
-          },
-          "label": "fieldValue",
-          "slot_index": 1
-        }
-      ],
-      "outputs": [
-        {
-          "name": "ARRAY",
-          "type": "ARRAY",
-          "links": [
-            23
-          ],
-          "slot_index": 0,
-          "shape": 3,
-          "label": "ARRAY"
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "RH_NodeInfoListNode"
-      },
-      "widgets_values": [
-        90,
-        "text",
-        "土星环"
-      ]
-    },
     {
       "id": 42,
       "type": "String",
@@ -89,95 +35,11 @@
       ]
     },
     {
-      "id": 30,
-      "type": "RH_ExecuteNode",
-      "pos": [
-        526,
-        1477
-      ],
-      "size": {
-        "0": 315,
-        "1": 102
-      },
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "apiConfig",
-          "type": "STRUCT",
-          "link": 20,
-          "label": "apiConfig"
-        },
-        {
-          "name": "nodeInfoList",
-          "type": "ARRAY",
-          "link": 23,
-          "label": "nodeInfoList"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "links": [
-            30
-          ],
-          "slot_index": 0,
-          "shape": 3,
-          "label": "images"
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "RH_ExecuteNode"
-      },
-      "widgets_values": [
-        600,
-        2
-      ]
-    },
-    {
-      "id": 9,
-      "type": "RH_SettingsNode",
-      "pos": [
-        53,
-        1227
-      ],
-      "size": [
-        502.2504859687508,
-        137.38932101438627
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRUCT",
-          "type": "STRUCT",
-          "links": [
-            20
-          ],
-          "slot_index": 0,
-          "shape": 3,
-          "label": "STRUCT"
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "RH_SettingsNode"
-      },
-      "widgets_values": [
-        "https://www.runninghub.cn",
-        "ed37fbdd79c34a7ca612aedbe5cea13e",
-        "1871595400514633730"
-      ]
-    },
-    {
       "id": 39,
       "type": "VHS_VideoCombine",
       "pos": [
-        887,
-        1224
+        1395,
+        1231
       ],
       "size": [
         214.7587890625,
@@ -239,16 +101,244 @@
           "hidden": false,
           "paused": false,
           "params": {
-            "filename": "AnimateDiff_00002.mp4",
+            "filename": "AnimateDiff_00005.mp4",
             "subfolder": "",
             "type": "output",
             "format": "video/h264-mp4",
             "frame_rate": 24,
-            "workflow": "AnimateDiff_00002.png"
+            "workflow": "AnimateDiff_00005.png"
           },
           "muted": false
         }
       }
+    },
+    {
+      "id": 9,
+      "type": "RH_SettingsNode",
+      "pos": [
+        53,
+        1227
+      ],
+      "size": {
+        "0": 502.25048828125,
+        "1": 137.3893280029297
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRUCT",
+          "type": "STRUCT",
+          "links": [
+            20
+          ],
+          "slot_index": 0,
+          "shape": 3,
+          "label": "STRUCT"
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_SettingsNode"
+      },
+      "widgets_values": [
+        "https://www.runninghub.cn",
+        "ed37fbdd79c34a7ca612aedbe5cea13e",
+        "1871595400514633730"
+      ]
+    },
+    {
+      "id": 30,
+      "type": "RH_ExecuteNode",
+      "pos": [
+        550,
+        1468
+      ],
+      "size": {
+        "0": 315,
+        "1": 102
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apiConfig",
+          "type": "STRUCT",
+          "link": 20,
+          "label": "apiConfig"
+        },
+        {
+          "name": "nodeInfoList",
+          "type": "ARRAY",
+          "link": 23,
+          "label": "nodeInfoList"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            30
+          ],
+          "slot_index": 0,
+          "shape": 3,
+          "label": "images"
+        },
+        {
+          "name": "videos",
+          "type": "VIDEO",
+          "links": [
+            33
+          ],
+          "shape": 3,
+          "label": "videos",
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_ExecuteNode"
+      },
+      "widgets_values": [
+        600,
+        5
+      ]
+    },
+    {
+      "id": 17,
+      "type": "RH_NodeInfoListNode",
+      "pos": [
+        82,
+        1435
+      ],
+      "size": {
+        "0": 330,
+        "1": 106
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "previousNodeInfoList",
+          "type": "ARRAY",
+          "link": null,
+          "label": "previousNodeInfoList",
+          "shape": 7
+        },
+        {
+          "name": "fieldValue",
+          "type": "STRING",
+          "link": 32,
+          "widget": {
+            "name": "fieldValue"
+          },
+          "label": "fieldValue",
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ARRAY",
+          "type": "ARRAY",
+          "links": [
+            23
+          ],
+          "slot_index": 0,
+          "shape": 3,
+          "label": "ARRAY"
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RH_NodeInfoListNode"
+      },
+      "widgets_values": [
+        90,
+        "text",
+        "土星环"
+      ]
+    },
+    {
+      "id": 43,
+      "type": "easy showAnythingLazy",
+      "pos": [
+        943,
+        1509
+      ],
+      "size": {
+        "0": 210,
+        "1": 26
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "type": "*",
+          "link": 33,
+          "label": "anything"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": [
+            34
+          ],
+          "shape": 3,
+          "label": "output",
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "easy showAnythingLazy"
+      }
+    },
+    {
+      "id": 44,
+      "type": "ShowText|pysssss",
+      "pos": [
+        928,
+        1639
+      ],
+      "size": [
+        315,
+        76
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 34,
+          "widget": {
+            "name": "text"
+          },
+          "label": "文本"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null,
+          "shape": 6,
+          "label": "字符串"
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "",
+        "output\\RH_output_video_1738854232.mp4"
+      ]
     }
   ],
   "links": [
@@ -283,16 +373,32 @@
       17,
       1,
       "STRING"
+    ],
+    [
+      33,
+      30,
+      1,
+      43,
+      0,
+      "*"
+    ],
+    [
+      34,
+      43,
+      0,
+      44,
+      0,
+      "STRING"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8769226950000008,
+      "scale": 0.9646149645000006,
       "offset": [
-        589.8700344728978,
-        -719.2667377838786
+        197.9158053009368,
+        -912.3150194555913
       ]
     },
     "ue_links": [],
