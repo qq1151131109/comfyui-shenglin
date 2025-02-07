@@ -28,3 +28,5 @@ git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICal
 ![image](https://github.com/user-attachments/assets/ed7cca06-f8cb-4eda-9dd8-c56464fd2414)
 #### 连接Photoshop
 ![image](https://github.com/user-attachments/assets/72c7ff4a-f6ef-43d5-a95c-242fbff5aafc)
+#### 对RH输出的多张图片，再做进一步灵活处理
+![image](https://github.com/user-attachments/assets/d28488f4-c5e5-436d-a9fd-50f9083ef3ff)
