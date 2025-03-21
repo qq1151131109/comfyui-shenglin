@@ -7,7 +7,7 @@
 ### 1. 安装插件
 在终端中运行以下命令以克隆插件到本地：
 ```bash
-git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICal
+git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICall
 ```
 ### 2. 注册并获取 API Key
 访问 [RunningHub 官网](https://www.runninghub.cn) 注册账户并获取你的 API Key。
