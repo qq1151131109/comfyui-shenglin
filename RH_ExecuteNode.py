@@ -7,6 +7,14 @@ import numpy as np
 import torch
 import os
 
+
+
+
+
+
+
+
+
 class ExecuteNode:
     def __init__(self):
         pass
@@ -15,42 +23,46 @@ class ExecuteNode:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "apiConfig": ("STRUCT",),  # 设置节点的输入
+                "apiConfig": ("STRUCT",),
             },
             "optional": {
-                "nodeInfoList": ("ARRAY", {"default": []}),  # NodeInfoList节点的输出, 设置为可选
-                "run_timeout": ("INT", {"default": 600}),       # 最大运行超时时间（秒）
-                "query_interval": ("INT", {"default": 10}),      # 查询间隔时间（秒）
+                "nodeInfoList": ("ARRAY", {"default": []}),
+                "run_timeout": ("INT", {"default": 600}),
+                "query_interval": ("INT", {"default": 10}),
+                "concurrency_limit": ("INT", {"default": 1, "min": 1}),  
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "VIDEO")  # 支持单张和多张图片输出，也支持视频
-    RETURN_NAMES = ("images", "videos")  # 定义返回名称，与 ComfyUI 的预期匹配
+    RETURN_TYPES = ("IMAGE", "VIDEO")
+    RETURN_NAMES = ("images", "videos")
 
     CATEGORY = "RunningHub"
-    FUNCTION = "process"  # 指向 process 方法
+    FUNCTION = "process"
 
-    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, query_interval=2):
+    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, query_interval=2, concurrency_limit=1):  
         # Ensure query_interval is not less than 2
         if query_interval < 2:
             print("Query interval is too low, setting to minimum value of 2 seconds.")
             query_interval = 2
 
-        print(f"API request data: {apiConfig}")
-        print(f"Node info list: {nodeInfoList}")
-        print(f"Run timeout: {run_timeout} seconds")
-        print(f"Query interval: {query_interval} seconds")
+        print(f"Concurrency limit set to: {concurrency_limit}") 
 
-        # 1. 查询账户状态，检查是否可以提交任务
+        # 1. 修改后的账户状态检查逻辑
         account_status = self.check_account_status(apiConfig["apiKey"], apiConfig["base_url"])
-        if int(account_status["currentTaskCounts"]) > 0:
-            print("There are tasks running, waiting for them to finish.")
+        current_tasks = int(account_status["currentTaskCounts"])
+        print(f"There are {current_tasks} tasks running")
+        # 当当前任务数 >= 并发限制时才等待
+        if current_tasks >= concurrency_limit:  
+            print(f"There are {current_tasks} tasks running (concurrency limit: {concurrency_limit}), waiting for them to finish.")  
             start_time = time.time()
-            while account_status["currentTaskCounts"] > 0 and time.time() - start_time < run_timeout:
+            while int(account_status["currentTaskCounts"]) >= concurrency_limit and time.time() - start_time < run_timeout:
                 time.sleep(query_interval)
                 account_status = self.check_account_status(apiConfig["apiKey"], apiConfig["base_url"])
-            if int(account_status["currentTaskCounts"]) > 0:
-                raise Exception(f"Timeout: There are still running tasks after {run_timeout} seconds.")
+            
+            # 超时后再次检查
+            if int(account_status["currentTaskCounts"]) >= concurrency_limit:
+                raise Exception(f"Timeout: Still have {account_status['currentTaskCounts']} running tasks (limit: {concurrency_limit}) after {run_timeout} seconds.")
+
 
         print(f"ExecuteNode NodeInfoList: {nodeInfoList}")
         
@@ -64,26 +76,40 @@ class ExecuteNode:
         print(f"Task created successfully, taskId: {task_id}, status: {task_status}")
 
         # 3. 查询任务状态直到任务完成
+        
+
         task_start_time = time.time()
-        while task_status != "success":
+        while True:
             print(f"Task still running, checking again in {query_interval} seconds...")
             time.sleep(query_interval)
             task_status_result = self.check_task_status(task_id, apiConfig["apiKey"], apiConfig["base_url"])
             print(f"Task info, taskId: {task_id}, status: {task_status_result}")
 
+            # 处理状态结果
             if isinstance(task_status_result, dict):
-                task_status = task_status_result.get("taskStatus", "unknown")
+                # 特殊处理 APIKEY_TASK_IS_QUEUED 错误状态
+                if task_status_result.get('error') == 'APIKEY_TASK_IS_QUEUED':
+                    task_status = "QUEUED"
+                else:
+                    task_status = task_status_result.get("taskStatus", "unknown")
             elif isinstance(task_status_result, list):
                 task_status = "success"
             else:
                 task_status = "unknown"
 
-            if task_status not in ["RUNNING", "success"]:
-                print(f"Task failed or completed with status: {task_status}")
+            # 检查终止条件
+            if task_status == "success":
+                print("Task completed successfully")
                 break
 
+            if task_status not in ["QUEUED", "RUNNING"]:
+                print(f"Task terminated with status: {task_status}")
+                break
+
+            # 检查超时
             if time.time() - task_start_time > run_timeout:
                 raise Exception(f"Timeout: Task {task_id} did not complete within {run_timeout} seconds.")
+
 
         # 4. 任务完成，处理输出
         return self.process_task_output(task_id, apiConfig["apiKey"], apiConfig["base_url"])
