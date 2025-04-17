@@ -3,6 +3,7 @@ from PIL import Image
 from io import BytesIO
 import torch
 import numpy as np
+import time  # Add this import
 
 class ImageUploaderNode:
     """
@@ -117,16 +118,29 @@ class ImageUploaderNode:
 
         print(f"Uploading image to {upload_url} with apiKey: {data['apiKey']}")
 
-        # 发送 POST 请求
-        try:
-            response = requests.post(upload_url, data=data, files=files)
-            print(f"Received response with status code: {response.status_code}")
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Failed to connect to the server: {e}")
+        # 发送 POST 请求，添加重试机制
+        max_retries = 5
+        retry_delay = 1  # 初始延迟1秒
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(upload_url, data=data, files=files)
+                print(f"Attempt {attempt + 1}: Received response with status code: {response.status_code}")
+                
+                if response.status_code == 200:
+                    break  # 成功则跳出重试循环
+                    
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:  # 最后一次尝试
+                    raise Exception(f"Failed to connect to the server after {max_retries} attempts: {e}")
+                print(f"Attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # 指数退避，每次失败后延迟时间翻倍
+                continue
 
-        # 检查 HTTP 响应状态
+        # 如果所有重试都失败了
         if response.status_code != 200:
-            raise Exception(f"Upload failed with status code {response.status_code}.")
+            raise Exception(f"Upload failed with status code {response.status_code} after {max_retries} attempts.")
 
         # 解析 JSON 响应
         try:
