@@ -9,6 +9,7 @@ import os
 import websocket  # 需要安装 websocket-client 包
 import threading
 import comfy.utils # Import comfy utils for ProgressBar
+import cv2 # <<< Added import for OpenCV
 
 # Try importing folder_paths safely
 try:
@@ -92,8 +93,8 @@ class ExecuteNode:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "VIDEO")
-    RETURN_NAMES = ("images", "videos")
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
 
     CATEGORY = "RunningHub"
     FUNCTION = "process"
@@ -397,10 +398,10 @@ class ExecuteNode:
         return self.process_task_output(task_id, api_key, base_url)
 
     def process_task_output(self, task_id, api_key, base_url):
-        """处理任务输出，包含轮询等待机制"""
-        max_retries = 30  # 最多等待30次
-        retry_interval = 1  # 初始等待1秒
-        max_retry_interval = 5  # 最大等待间隔5秒
+        """处理任务输出，包含轮询等待机制。现在视频会被提取成帧。"""
+        max_retries = 30
+        retry_interval = 1
+        max_retry_interval = 5
 
         for attempt in range(max_retries):
             try:
@@ -408,14 +409,12 @@ class ExecuteNode:
                 print(f"Check output attempt {attempt + 1}/{max_retries}")
                 print("Task Status Result:", json.dumps(task_status_result, indent=2, ensure_ascii=False))
 
-                # 如果任务仍在运行，等待后重试
                 if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") in ["RUNNING", "QUEUED"]:
                     wait_time = min(retry_interval * (1.5 ** attempt), max_retry_interval)
                     print(f"Task still running, waiting {wait_time:.1f} seconds before next check...")
                     time.sleep(wait_time)
                     continue
 
-                # 如果获取到了实际的输出结果（文件列表）
                 if isinstance(task_status_result, list) and len(task_status_result) > 0:
                     print("Got valid output result, processing files...")
                     image_urls = []
@@ -429,10 +428,11 @@ class ExecuteNode:
                                 file_type_lower = file_type.lower()
                                 if file_type_lower in ["png", "jpg", "jpeg", "webp", "bmp", "gif"]:
                                     image_urls.append(file_url)
+                                # Treat video files as sources for images
                                 elif file_type_lower in ["mp4", "avi", "mov", "webm"]:
                                     video_urls.append(file_url)
 
-                    # 处理图片和视频
+                    # Process images and extracted video frames
                     image_data_list = []
                     if image_urls:
                         print(f"Downloading {len(image_urls)} images...")
@@ -445,33 +445,38 @@ class ExecuteNode:
                             except Exception as img_e:
                                 print(f"Error downloading image {url}: {img_e}")
 
-                    video_data_list = []
+                    # Download videos and extract frames
                     if video_urls:
-                        print(f"Downloading {len(video_urls)} videos...")
+                        print(f"Downloading and extracting frames from {len(video_urls)} videos...")
                         for url in video_urls:
                             try:
-                                print(f"Downloading video: {url}")
-                                video_path = self.download_video(url)
-                                if video_path is not None:
-                                    video_data_list.append(video_path)
+                                print(f"Processing video: {url}")
+                                # download_video now returns a list of frame tensors
+                                frame_tensors = self.download_video(url)
+                                if frame_tensors:
+                                    image_data_list.extend(frame_tensors)
+                                    print(f"Extracted {len(frame_tensors)} frames from {url}")
                             except Exception as vid_e:
-                                print(f"Error downloading video {url}: {vid_e}")
+                                print(f"Error processing video {url}: {vid_e}")
 
-                    if image_data_list or video_data_list:
-                        print(f"Successfully got results: {len(image_data_list)} images, {len(video_data_list)} videos")
-                        return (image_data_list, video_data_list)
+                    if image_data_list:
+                        print(f"Successfully got results: {len(image_data_list)} images (including extracted frames)")
+                        # Return only images, the second element is now always empty
+                        return (image_data_list,)
+                    else:
+                        print("No valid images or video frames could be processed.")
+                        return ([],) # Return empty list for images
 
-                # 如果是错误状态
                 if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") == "error":
                     print(f"Task error: {task_status_result.get('error', 'Unknown error')}")
-                    return ([], [])
+                    return ([],) # Return empty list for images
 
             except Exception as e:
                 print(f"Error checking task status (attempt {attempt + 1}): {e}")
                 time.sleep(retry_interval)
 
         print(f"Failed to get valid output after {max_retries} attempts")
-        return ([], [])
+        return ([],) # Return empty list for images
 
 
     def download_image(self, image_url):
@@ -513,99 +518,117 @@ class ExecuteNode:
 
     def download_video(self, video_url):
         """
-        从 URL 下载视频并保存到本地。
-        包含重试机制，最多重试5次。
-        Returns the local file path string or None on failure.
+        Downloads a video, extracts all frames, converts them to tensors,
+        deletes the video file, and returns a list of image tensors.
+        Requires opencv-python (cv2).
+        Returns list[torch.Tensor] or None on failure.
         """
         max_retries = 5
         retry_delay = 1
         last_exception = None
-        
-        for attempt in range(max_retries):
-            video_path = None 
+        video_path = None
+        output_dir = "temp" # Use a temp directory for downloaded videos
+
+        # --- Ensure temp directory exists --- 
+        if not os.path.exists(output_dir):
             try:
-                output_dir = "output" 
-                if comfyui_env_available and hasattr(folder_paths, 'get_output_directory'):
-                    try:
-                         output_dir = folder_paths.get_output_directory()
-                    except Exception as e_dir:
-                         print(f"Warning: Could not get output directory from folder_paths: {e_dir}. Using default 'output'.")
-                
-                if not os.path.exists(output_dir):
-                    os.makedirs(output_dir)
-                    print(f"Created output directory: {output_dir}")
+                os.makedirs(output_dir)
+                print(f"Created temporary directory: {output_dir}")
+            except OSError as e:
+                print(f"Error creating temporary directory {output_dir}: {e}")
+                return None # Cannot proceed without temp dir
 
+        # --- Download the video file --- 
+        for attempt in range(max_retries):
+            video_path = None # Reset path for each attempt
+            try:
+                # Generate a unique temporary filename
                 try:
-                    parsed_url = requests.utils.urlparse(video_url)
-                    filename_from_url = os.path.basename(parsed_url.path) if parsed_url.path and '.' in os.path.basename(parsed_url.path) else None
-                    
-                    safe_filename_from_url = "".join(c if c.isalnum() or c in ['.', '_', '-'] else '_' for c in filename_from_url) if filename_from_url else None
-
-                    base_filename = safe_filename_from_url if safe_filename_from_url else f"RH_output_video_{str(int(time.time()*1000))}.mp4"
-
-                    counter = 0
-                    video_path_base, video_ext = os.path.splitext(base_filename)
-                    max_base_len = 100 
-                    video_path_base = video_path_base[:max_base_len]
-                    
-                    video_path = os.path.join(output_dir, f"{video_path_base}{video_ext}")
-                    while os.path.exists(video_path):
-                         counter += 1
-                         video_path = os.path.join(output_dir, f"{video_path_base}_{counter}{video_ext}")
-                         if counter > 100: 
-                              print("Warning: Could not find unique filename after 100 attempts.")
-                              video_path = os.path.join(output_dir, f"{video_path_base}_{str(int(time.time()*1000))}{video_ext}")
-                              break
+                    safe_filename = f"temp_video_{os.path.basename(video_url)}_{str(int(time.time()*1000))}.tmp"
+                    safe_filename = "".join(c if c.isalnum() or c in ['.', '_', '-'] else '_' for c in safe_filename)[:150] # Basic sanitization and length limit
+                    video_path = os.path.join(output_dir, safe_filename)
                 except Exception as path_e:
-                     print(f"Error determining video path: {path_e}")
-                     fallback_filename = f"RH_output_video_fallback_{str(int(time.time()*1000))}.mp4"
-                     video_path = os.path.join(output_dir, fallback_filename)
-
-                print(f"Attempting to download video to: {video_path}")
+                    print(f"Error creating temporary video path: {path_e}")
+                    video_path = os.path.join(output_dir, f"temp_video_{str(int(time.time()*1000))}.tmp")
                 
-                response = requests.get(video_url, stream=True, timeout=60) 
-                print(f"Download video attempt {attempt + 1} ({video_url}): Status code: {response.status_code}")
+                print(f"Attempt {attempt + 1}/{max_retries} to download video to temp path: {video_path}")
+                response = requests.get(video_url, stream=True, timeout=60)
                 response.raise_for_status()
-
-                content_type = response.headers.get('Content-Type', '').lower()
-                if not any(vid_type in content_type for vid_type in ['video/', 'octet-stream']):
-                     print(f"Warning: Content-Type '{content_type}' may not be a video for URL {video_url}")
 
                 downloaded_size = 0
                 with open(video_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=65536): 
+                    for chunk in response.iter_content(chunk_size=65536):
                         if chunk:
                             f.write(chunk)
                             downloaded_size += len(chunk)
                 
                 if downloaded_size > 0:
-                     print(f"Video saved successfully to {video_path} ({downloaded_size / (1024*1024):.2f} MB)")
-                     return video_path 
+                    print(f"Temporary video downloaded successfully: {video_path}")
+                    break # Exit retry loop on successful download
                 else:
-                     print(f"Warning: Downloaded video file is empty: {video_path}")
-                     if os.path.exists(video_path): os.remove(video_path) 
-                     last_exception = IOError("Downloaded video file is empty.")
+                    print(f"Warning: Downloaded video file is empty: {video_path}")
+                    if os.path.exists(video_path): os.remove(video_path)
+                    last_exception = IOError("Downloaded video file is empty.")
 
             except (requests.exceptions.RequestException, IOError) as e:
                  print(f"Download video attempt {attempt + 1} failed: {e}")
                  last_exception = e
                  if video_path and os.path.exists(video_path):
-                     try:
-                         os.remove(video_path)
-                         print(f"Removed partial/failed download file: {video_path}")
-                     except OSError as rm_e:
-                         print(f"Error removing partial file {video_path}: {rm_e}")
+                     try: os.remove(video_path) 
+                     except OSError: pass # Ignore error removing partial file
             
-            # Retry logic
             if attempt < max_retries - 1:
-                print(f"Retrying in {retry_delay} seconds...")
+                print(f"Retrying download in {retry_delay} seconds...")
                 time.sleep(retry_delay)
                 retry_delay *= 2
             else:
                 print(f"Failed to download video {video_url} after {max_retries} attempts.")
-                return None
+                return None # Failed to download
 
-        return None 
+        # --- Extract frames if download was successful --- 
+        frame_tensors = []
+        cap = None
+        try:
+            if video_path and os.path.exists(video_path):
+                print(f"Extracting frames from {video_path}...")
+                cap = cv2.VideoCapture(video_path)
+                if not cap.isOpened():
+                    raise IOError(f"Cannot open video file: {video_path}")
+                
+                frame_count = 0
+                while True:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break # End of video
+                    
+                    # Convert frame (BGR) to RGB, then to Tensor [H, W, C] (float32, 0-1)
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(frame_rgb)
+                    img_array = np.array(img).astype(np.float32) / 255.0
+                    img_tensor = torch.from_numpy(img_array)
+                    frame_tensors.append(img_tensor)
+                    frame_count += 1
+                    # Optional: Add progress logging for long videos
+                    # if frame_count % 100 == 0: print(f"  Extracted {frame_count} frames...")
+
+                print(f"Finished extracting {frame_count} frames.")
+        except Exception as e:
+            print(f"Error extracting frames from video {video_path}: {e}")
+            # Return None or potentially partially extracted frames? Let's return None for consistency.
+            frame_tensors = None # Indicate failure
+        finally:
+            # --- Cleanup --- 
+            if cap:
+                cap.release()
+            # Delete the temporary video file regardless of extraction success/failure
+            if video_path and os.path.exists(video_path):
+                try:
+                    os.remove(video_path)
+                    print(f"Deleted temporary video file: {video_path}")
+                except OSError as e:
+                    print(f"Error deleting temporary video file {video_path}: {e}")
+        
+        return frame_tensors
 
 
     def check_account_status(self, api_key, base_url):
