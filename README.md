@@ -36,11 +36,11 @@ git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICall
 ![image](https://github.com/user-attachments/assets/e6d76026-13bb-4ee7-8bcf-2cbc64a046ce)
 
 ### 5. 实例(工作流json在examples目录下)
+#### ALL IN One
+![image](https://github.com/user-attachments/assets/0dfe5998-206b-491f-a740-82938eb04e8d)
 #### 文生图：
 ![image](https://github.com/user-attachments/assets/3b00beeb-1d0d-4fc2-b635-d31cfcf06887)
 #### 图生图：
 ![image](https://github.com/user-attachments/assets/552bf53c-8913-474e-838a-c110e9dbc6d0)
 #### 连接Photoshop
 ![image](https://github.com/user-attachments/assets/72c7ff4a-f6ef-43d5-a95c-242fbff5aafc)
-#### 对RH输出的多张图片，再做进一步灵活处理
-![image](https://github.com/user-attachments/assets/d28488f4-c5e5-436d-a9fd-50f9083ef3ff)
