@@ -11,6 +11,7 @@ import threading
 import comfy.utils # Import comfy utils for ProgressBar
 import cv2 # <<< Added import for OpenCV
 import safetensors.torch # <<< Added safetensors import
+import torchaudio 
 
 # Try importing folder_paths safely
 try:
@@ -94,8 +95,8 @@ class ExecuteNode:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "LATENT")
-    RETURN_NAMES = ("images", "latent")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "LATENT", "STRING", "AUDIO")
+    RETURN_NAMES = ("images", "video_frames", "latent", "text", "audio")
 
     CATEGORY = "RunningHub"
     FUNCTION = "process"
@@ -199,30 +200,53 @@ class ExecuteNode:
             "workflowId": workflow_id
         }
 
-        try:
-            response = requests.post(url, json=data, headers=headers, timeout=30)
-            response.raise_for_status()
-            result = response.json()
+        max_retries = 5
+        retry_delay = 1
+        last_exception = None
+        node_count = None
 
-            if result.get("code") != 0:
-                raise Exception(f"API error getting workflow: {result.get('msg', 'Unknown error')}")
+        for attempt in range(max_retries):
+            response = None
+            try:
+                print(f"Attempt {attempt + 1}/{max_retries} to get workflow node count...")
+                response = requests.post(url, json=data, headers=headers, timeout=30)
+                response.raise_for_status()
 
-            workflow_json = result.get("data", {}).get("prompt")
-            if not workflow_json:
-                raise Exception("No workflow data found in response")
+                result = response.json()
 
-            # Parse the workflow JSON
-            workflow_data = json.loads(workflow_json)
-            
-            # Count the number of nodes
-            node_count = len(workflow_data)
-            print(f"Workflow contains {node_count} nodes")
-            return node_count
+                if result.get("code") != 0:
+                    api_msg = result.get('msg', 'Unknown API error')
+                    print(f"API error on attempt {attempt + 1}: {api_msg}")
+                    raise Exception(f"API error getting workflow node count: {api_msg}")
 
-        except Exception as e:
-            print(f"Error getting workflow node count: {e}")
-            # Return default value if API call fails
-            return self.ESTIMATED_TOTAL_NODES
+                workflow_json = result.get("data", {}).get("prompt")
+                if not workflow_json:
+                    raise Exception("No workflow data found in response")
+
+                # Parse the workflow JSON
+                workflow_data = json.loads(workflow_json)
+                
+                # Count the number of nodes
+                node_count = len(workflow_data)
+                print(f"Workflow contains {node_count} nodes")
+                return node_count
+
+            except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError, Exception) as e:
+                print(f"Error on attempt {attempt + 1}/{max_retries}: {e}")
+                last_exception = e
+                if isinstance(e, json.JSONDecodeError) and response is not None:
+                     print(f"Raw response text on JSON decode error: {response.text}")
+
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    print("Max retries reached for getting workflow node count.")
+                    raise Exception(f"Failed to get workflow node count after {max_retries} attempts. Last error: {last_exception}") from last_exception
+
+        # This should ideally not be reached if the loop logic is correct
+        raise Exception(f"Failed to get workflow node count after {max_retries} attempts (unexpected loop end). Last error: {last_exception}")
 
     # --- Main Process Method ---
     def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1):
@@ -270,7 +294,7 @@ class ExecuteNode:
             current_tasks = int(account_status["currentTaskCounts"])
             print(f"There are {current_tasks} tasks running")
             
-            if current_tasks >= concurrency_limit:
+            if current_tasks >= concurrency_limit:  
                 print(f"Concurrency limit ({concurrency_limit}) reached, waiting...")
                 start_wait_time = time.time()
                 # Use a shorter sleep interval while waiting for concurrency
@@ -321,6 +345,8 @@ class ExecuteNode:
         print("Starting task monitoring loop...")
 
         timeout_timer = None
+        final_error = None # <<< Define final_error outside try/finally
+
         try:
             # Setup global timeout timer
             def force_timeout():
@@ -329,17 +355,18 @@ class ExecuteNode:
                      is_completed = self.task_completed
                 if not is_completed:
                     print("Global timeout reached - forcing task completion.")
-                    self.ws_error = Exception("Global timeout reached")
-                    # Let the main loop call complete_progress via the finally block or error handling
-                    # Just set the flags here to break loop
-                    self.task_completed = True # Set flag directly here to break loop
+                    # Use lock to set error safely
+                    with self.node_lock:
+                        self.ws_error = Exception("Global timeout reached")
+                        # Just set the flags here to break loop
+                        self.task_completed = True # Set flag directly here to break loop
 
             timeout_timer = threading.Timer(run_timeout, force_timeout)
             timeout_timer.daemon = True
             timeout_timer.start()
 
             # Main wait loop
-            while True:
+            while True: # <<< Added loop structure
                 # Check completion flags (read safely with lock)
                 with self.node_lock:
                      is_completed = self.task_completed
@@ -361,20 +388,21 @@ class ExecuteNode:
 
             # Handle exit conditions after loop
             with self.node_lock: # Read error flag safely
-                 final_error = self.ws_error
+                 final_error = self.ws_error # Assign to outer scope variable
 
             if final_error:
                 print(f"Task ended with error: {final_error}")
                 # Only complete progress if not already completed by WS handler
-                with self.node_lock:
-                    if not self.task_completed:
-                        self.complete_progress()
-                raise final_error # Re-raise the error
+                # (complete_progress handles internal check)
+                self.complete_progress() # Call safe completion method
+                # Error will be raised outside the finally block if needed
             else: # Task completed normally
                 print("Task monitoring completed successfully.")
-                # complete_progress should have been called by WS handler
+                # complete_progress should have been called by WS handler or the loop exit condition
+                # Ensure completion even if WS didn't send success (e.g., timeout)
+                self.complete_progress()
 
-        finally:
+        finally: # <<< Added finally clause
             # Cleanup
             if timeout_timer:
                 timeout_timer.cancel()
@@ -385,13 +413,13 @@ class ExecuteNode:
                     print(f"Error closing WebSocket: {e}")
                 self.ws = None
 
-            # Final safety net: Only complete progress if not already completed
-            with self.node_lock:
-                 is_finally_completed = self.task_completed
-            if not is_finally_completed:
-                 print("Warning: Monitoring loop ended unexpectedly. Finalizing progress via finally block.")
-                 self.complete_progress() # Call the safe completion method
+            # Final safety net: Ensure progress is marked complete.
+            # complete_progress has internal checks, so calling it again is safe.
+            self.complete_progress()
 
+        # If an error occurred during the loop, raise it now after cleanup
+        if final_error:
+            raise final_error
 
         # --- Process Output ---
         print("Processing task output...")
@@ -399,34 +427,37 @@ class ExecuteNode:
         return self.process_task_output(task_id, api_key, base_url)
 
     def process_task_output(self, task_id, api_key, base_url):
-        """Handles task output, including images, video frames, and latents."""
+        """Handles task output, separating images, video frames, audio, etc."""
         max_retries = 30
         retry_interval = 1
         max_retry_interval = 5
-        image_data_list = []
-        latent_data = None # Store the first valid latent found
+        image_data_list = [] # <<< For regular images
+        frame_data_list = [] # <<< For video frames
+        latent_data = None
+        text_data = None
+        audio_data = None # <<< For audio data
 
         for attempt in range(max_retries):
             task_status_result = None
             try:
                 task_status_result = self.check_task_status(task_id, api_key, base_url)
                 print(f"Check output attempt {attempt + 1}/{max_retries}")
-                # Limit excessive logging of full status unless debugging
-                # print("Task Status Result:", json.dumps(task_status_result, indent=2, ensure_ascii=False))
 
                 if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") in ["RUNNING", "QUEUED"]:
                     wait_time = min(retry_interval * (1.5 ** attempt), max_retry_interval)
                     print(f"Task still running ({task_status_result.get('taskStatus')}), waiting {wait_time:.1f} seconds...")
                     time.sleep(wait_time)
-                    continue
+                    continue # <<< Continue within loop
 
                 if isinstance(task_status_result, list) and len(task_status_result) > 0:
                     print("Got valid output result, processing files...")
                     image_urls = []
                     video_urls = []
                     latent_urls = []
+                    text_urls = []
+                    audio_urls = [] # <<< Add list for audio urls
 
-                    for output in task_status_result:
+                    for output in task_status_result: # <<< Indent loop correctly
                         if isinstance(output, dict):
                             file_url = output.get("fileUrl")
                             file_type = output.get("fileType")
@@ -436,12 +467,17 @@ class ExecuteNode:
                                     image_urls.append(file_url)
                                 elif file_type_lower in ["mp4", "avi", "mov", "webm"]:
                                     video_urls.append(file_url)
-                                elif file_type_lower == "latent": # <<< Handle latent files
+                                elif file_type_lower == "latent":
                                     latent_urls.append(file_url)
+                                elif file_type_lower == "txt":
+                                    text_urls.append(file_url)
+                                # <<< Add common audio types
+                                elif file_type_lower in ["wav", "mp3", "flac", "ogg"]: 
+                                    audio_urls.append(file_url)
 
-                    # Process Images
+                    # Process Images -> Add to image_data_list
                     if image_urls:
-                        print(f"Downloading {len(image_urls)} images...")
+                        print(f"Processing {len(image_urls)} images...")
                         for url in image_urls:
                             try:
                                 img_tensor = self.download_image(url)
@@ -450,68 +486,111 @@ class ExecuteNode:
                             except Exception as img_e:
                                 print(f"Error downloading image {url}: {img_e}")
 
-                    # Process Videos (extract frames)
+                    # Process Videos (extract frames) -> Add to frame_data_list
                     if video_urls:
                         print(f"Processing {len(video_urls)} videos for frames...")
                         for url in video_urls:
                             try:
                                 frame_tensors = self.download_video(url)
                                 if frame_tensors:
-                                    image_data_list.extend(frame_tensors)
+                                    frame_data_list.extend(frame_tensors) # <<< Add to frame_data_list
                                     print(f"Extracted {len(frame_tensors)} frames from video {url}")
                             except Exception as vid_e:
                                 print(f"Error processing video {url}: {vid_e}")
-                                
+
                     # Process Latents (load the first one found)
-                    if latent_urls and latent_data is None: # Only process if we haven't found one yet
+                    if latent_urls and latent_data is None:
                         print(f"Processing {len(latent_urls)} latent file(s)...")
                         for url in latent_urls:
-                            try:
-                                loaded_latent = self.download_and_load_latent(url)
-                                if loaded_latent is not None:
-                                    latent_data = loaded_latent
-                                    print(f"Successfully loaded latent from {url}")
-                                    break # Stop after loading the first successful latent
-                            except Exception as lat_e:
-                                print(f"Error processing latent {url}: {lat_e}")
-                                
+                             try:
+                                 loaded_latent = self.download_and_load_latent(url)
+                                 if loaded_latent is not None:
+                                     latent_data = loaded_latent
+                                     print(f"Successfully loaded latent from {url}")
+                                     break # Process only the first successful latent
+                             except Exception as lat_e:
+                                 print(f"Error processing latent {url}: {lat_e}")
+
+                    # Process Text Files (read the first one found)
+                    if text_urls and text_data is None:
+                        print(f"Processing {len(text_urls)} text file(s)...")
+                        for url in text_urls:
+                             try:
+                                 loaded_text = self.download_and_read_text(url)
+                                 if loaded_text is not None:
+                                     text_data = loaded_text
+                                     print(f"Successfully read text from {url}")
+                                     break # Process only the first successful text file
+                             except Exception as txt_e:
+                                 print(f"Error processing text file {url}: {txt_e}")
+
+                    # <<< Process Audio Files (load the first one found)
+                    if audio_urls and audio_data is None:
+                        print(f"Processing {len(audio_urls)} audio file(s)...")
+                        for url in audio_urls:
+                             try:
+                                 loaded_audio = self.download_and_process_audio(url)
+                                 if loaded_audio is not None:
+                                     audio_data = loaded_audio
+                                     print(f"Successfully processed audio from {url}")
+                                     break # Process only the first successful audio file
+                             except Exception as aud_e:
+                                 print(f"Error processing audio file {url}: {aud_e}")
+
                     # Task processing complete, break the retry loop
-                    break
+                    break # <<< Break within loop
 
-                if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") == "error":
+                elif isinstance(task_status_result, dict) and task_status_result.get("taskStatus") == "error": # <<< Use elif
                     print(f"Task failed with error: {task_status_result.get('error', 'Unknown error')}")
-                    break # Stop retrying on error
+                    break # <<< Break within loop
 
-                # If status is not RUNNING/QUEUED/List/Error, wait and retry (e.g., 'unknown' or unexpected format)
-                print(f"Unexpected task status or empty result, waiting...")
-                time.sleep(min(retry_interval * (1.5 ** attempt), max_retry_interval))
+                else: # <<< Handle other cases or unexpected results
+                    print(f"Unexpected task status or empty result, waiting...")
+                    time.sleep(min(retry_interval * (1.5 ** attempt), max_retry_interval))
 
-            except Exception as e:
+            except Exception as e: # <<< Added except clause
                 print(f"Error checking/processing task status (attempt {attempt + 1}): {e}")
-                # Check if response suggests an error that shouldn't be retried
+                # Check if the result indicates an error, even if an exception occurred during processing
                 if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") == "error":
                      print("Stopping retries due to reported task error.")
-                     break
-                time.sleep(retry_interval * (1.5 ** attempt)) # Backoff before next attempt
+                     break # <<< Break within loop
+                # Simple exponential backoff for retries
+                time.sleep(min(retry_interval * (1.5 ** attempt), max_retry_interval))
 
-        # --- Final Output Generation --- 
-        
-        # Provide placeholder image if none were generated/extracted
+        # --- Final Output Generation ---
+
+        # Placeholder for regular images
         if not image_data_list:
-            print("No images generated, creating placeholder.")
-            image_data_list.append(self.create_placeholder_image()) 
-            
-        # Provide placeholder latent if none was loaded
+            print("No regular images generated, creating placeholder.")
+            image_data_list.append(self.create_placeholder_image(text="No image output"))
+
+        # Placeholder for video frames
+        if not frame_data_list:
+            print("No video frames generated, creating placeholder.")
+            frame_data_list.append(self.create_placeholder_image(text="No video frame output"))
+
+        # Placeholder for latent
         if latent_data is None:
             print("No latent generated, creating placeholder.")
             latent_data = self.create_placeholder_latent()
 
-        # Combine image tensors into a single batch if multiple images exist
-        final_image_batch = torch.cat(image_data_list, dim=0) if image_data_list else None
+        # Default for text
+        if text_data is None:
+             print("No text file processed, returning 'null' string.")
+             text_data = "null"
+             
+        # <<< Placeholder for audio
+        if audio_data is None:
+            print("No audio generated, creating placeholder.")
+            audio_data = self.create_placeholder_audio()
 
-        # Ensure we return a tuple matching RETURN_TYPES = ("IMAGE", "LATENT")
-        # Return None for images if the placeholder couldn't even be created (highly unlikely)
-        return (final_image_batch, latent_data)
+        # Batch images and frames separately
+        final_image_batch = torch.cat(image_data_list, dim=0) if image_data_list else None
+        final_frame_batch = torch.cat(frame_data_list, dim=0) if frame_data_list else None # <<< Batch frames
+
+        # Ensure we return a tuple matching RETURN_TYPES
+        # <<< Add audio_data to the return tuple
+        return (final_image_batch, final_frame_batch, latent_data, text_data, audio_data) 
 
     def create_placeholder_image(self, text="No image/video output", width=256, height=64):
         """Creates a placeholder image tensor with text."""
@@ -545,49 +624,61 @@ class ExecuteNode:
             print(f"Error adding text to placeholder image: {e}. Returning image without text.")
         
         img_array = np.array(img).astype(np.float32) / 255.0
-        img_tensor = torch.from_numpy(img_array)[None,] # Add batch dimension [1, H, W, C]
+        img_tensor = torch.from_numpy(img_array)[None,] # Shape: [1, H, W, C]
         return img_tensor
 
     def create_placeholder_latent(self, batch_size=1, channels=4, height=64, width=64):
         """Creates a placeholder latent tensor dictionary."""
         latent = torch.zeros([batch_size, channels, height, width])
         return {"samples": latent}
+        
+    # <<< Add placeholder audio function
+    def create_placeholder_audio(self, sample_rate=44100, duration_sec=0.01):
+        """Creates a placeholder silent audio dictionary."""
+        print(f"Creating silent placeholder audio: {duration_sec}s @ {sample_rate}Hz")
+        num_samples = int(sample_rate * duration_sec)
+        waveform = torch.zeros((1, num_samples), dtype=torch.float32) # Mono silence
+        return {"waveform": waveform, "sample_rate": sample_rate}
 
     def download_image(self, image_url):
         """
         从 URL 下载图像并转换为适合预览或保存的 torch.Tensor 格式。
         包含重试机制，最多重试5次。
-        Returns tensor [H, W, C] or None on failure.
+        Returns tensor [1, H, W, C] or None on failure.
         """
         max_retries = 5
         retry_delay = 1
         last_exception = None
-        
+        img_tensor = None # Define img_tensor outside try
+
         for attempt in range(max_retries):
             try:
-                response = requests.get(image_url, timeout=30) 
+                response = requests.get(image_url, timeout=30)
                 print(f"Download image attempt {attempt + 1} ({image_url}): Status code: {response.status_code}")
                 response.raise_for_status()
-                
+
                 content_type = response.headers.get('Content-Type', '').lower()
-                
+                # Consider validating content_type if needed
+
                 img = Image.open(BytesIO(response.content)).convert("RGB")
                 img_array = np.array(img).astype(np.float32) / 255.0
-                img_tensor = torch.from_numpy(img_array) # Shape: [H, W, C]
-                return img_tensor 
+                img_tensor = torch.from_numpy(img_array)[None,] # Shape: [1, H, W, C]
+                return img_tensor # Return on success
 
-            except (requests.exceptions.RequestException, IOError, Image.UnidentifiedImageError) as e:
+            except (requests.exceptions.RequestException, IOError, Image.UnidentifiedImageError) as e: # <<< Correct except clause
                 print(f"Download image attempt {attempt + 1} failed: {e}")
                 last_exception = e
                 if attempt < max_retries - 1:
                     print(f"Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                     retry_delay *= 2
-                else:
-                    print(f"Failed to download image {image_url} after {max_retries} attempts.")
-                    return None
+                # else: # <<< Implicitly handled by loop ending
+                #     print(f"Failed to download image {image_url} after {max_retries} attempts.")
+                #     # Keep img_tensor as None
 
-        return None 
+        # If loop finishes without returning, it means all retries failed
+        print(f"Failed to download image {image_url} after {max_retries} attempts.")
+        return None
 
 
     def download_video(self, video_url):
@@ -595,7 +686,7 @@ class ExecuteNode:
         Downloads a video, extracts all frames, converts them to tensors,
         deletes the video file, and returns a list of image tensors.
         Requires opencv-python (cv2).
-        Returns list[torch.Tensor] or None on failure.
+        Returns list[torch.Tensor] or None on failure. Each tensor shape [1, H, W, C]. <<< Updated shape comment
         """
         max_retries = 5
         retry_delay = 1
@@ -603,8 +694,8 @@ class ExecuteNode:
         video_path = None
         output_dir = "temp" # Use a temp directory for downloaded videos
 
-        # --- Ensure temp directory exists --- 
-        if not os.path.exists(output_dir):
+        # --- Ensure temp directory exists ---
+        if not os.path.exists(output_dir): # <<< Correct indentation
             try:
                 os.makedirs(output_dir)
                 print(f"Created temporary directory: {output_dir}")
@@ -612,7 +703,7 @@ class ExecuteNode:
                 print(f"Error creating temporary directory {output_dir}: {e}")
                 return None # Cannot proceed without temp dir
 
-        # --- Download the video file --- 
+        # --- Download the video file ---
         for attempt in range(max_retries):
             video_path = None # Reset path for each attempt
             try:
@@ -623,8 +714,9 @@ class ExecuteNode:
                     video_path = os.path.join(output_dir, safe_filename)
                 except Exception as path_e:
                     print(f"Error creating temporary video path: {path_e}")
+                    # Fallback filename
                     video_path = os.path.join(output_dir, f"temp_video_{str(int(time.time()*1000))}.tmp")
-                
+
                 print(f"Attempt {attempt + 1}/{max_retries} to download video to temp path: {video_path}")
                 response = requests.get(video_url, stream=True, timeout=60)
                 response.raise_for_status()
@@ -635,63 +727,77 @@ class ExecuteNode:
                         if chunk:
                             f.write(chunk)
                             downloaded_size += len(chunk)
-                
+
                 if downloaded_size > 0:
                     print(f"Temporary video downloaded successfully: {video_path}")
                     break # Exit retry loop on successful download
                 else:
                     print(f"Warning: Downloaded video file is empty: {video_path}")
-                    if os.path.exists(video_path): os.remove(video_path)
+                    if os.path.exists(video_path):
+                        try: os.remove(video_path)
+                        except OSError: pass
                     last_exception = IOError("Downloaded video file is empty.")
+                    # Continue to retry
 
-            except (requests.exceptions.RequestException, IOError) as e:
+            except (requests.exceptions.RequestException, IOError) as e: # <<< Correct except clause
                  print(f"Download video attempt {attempt + 1} failed: {e}")
                  last_exception = e
                  if video_path and os.path.exists(video_path):
-                     try: os.remove(video_path) 
+                     try: os.remove(video_path)
                      except OSError: pass # Ignore error removing partial file
-            
+                 # Continue to retry unless it's the last attempt
+
             if attempt < max_retries - 1:
                 print(f"Retrying download in {retry_delay} seconds...")
                 time.sleep(retry_delay)
                 retry_delay *= 2
-            else:
-                print(f"Failed to download video {video_url} after {max_retries} attempts.")
-                return None # Failed to download
+            # else: # Implicitly handled by loop ending
+            #     print(f"Failed to download video {video_url} after {max_retries} attempts.")
+            #     # video_path will likely be None or point to a non-existent/empty file
 
-        # --- Extract frames if download was successful --- 
+        # Check if download succeeded (video_path exists and is not empty)
+        if not video_path or not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+             print(f"Failed to download video {video_url} successfully after {max_retries} attempts.")
+             # Clean up potentially empty file if it exists
+             if video_path and os.path.exists(video_path):
+                 try: os.remove(video_path)
+                 except OSError: pass
+             return None
+
+        # --- Extract frames if download was successful ---
         frame_tensors = []
         cap = None
         try:
-            if video_path and os.path.exists(video_path):
-                print(f"Extracting frames from {video_path}...")
-                cap = cv2.VideoCapture(video_path)
-                if not cap.isOpened():
-                    raise IOError(f"Cannot open video file: {video_path}")
-                
-                frame_count = 0
-                while True:
-                    ret, frame = cap.read()
-                    if not ret:
-                        break # End of video
-                    
-                    # Convert frame (BGR) to RGB, then to Tensor [H, W, C] (float32, 0-1)
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    img = Image.fromarray(frame_rgb)
-                    img_array = np.array(img).astype(np.float32) / 255.0
-                    img_tensor = torch.from_numpy(img_array)
-                    frame_tensors.append(img_tensor)
-                    frame_count += 1
-                    # Optional: Add progress logging for long videos
-                    # if frame_count % 100 == 0: print(f"  Extracted {frame_count} frames...")
+            print(f"Extracting frames from {video_path}...")
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                raise IOError(f"Cannot open video file: {video_path}")
 
-                print(f"Finished extracting {frame_count} frames.")
+            frame_count = 0
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break # End of video
+
+                # Convert frame (BGR) to RGB, then to Tensor [1, H, W, C] (float32, 0-1)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                # Reuse PIL conversion for consistency? Or keep cv2->numpy path
+                img_array = frame_rgb.astype(np.float32) / 255.0 # Direct conversion
+                # img = Image.fromarray(frame_rgb)
+                # img_array = np.array(img).astype(np.float32) / 255.0
+                img_tensor = torch.from_numpy(img_array)[None,] # <<< Added batch dimension
+                frame_tensors.append(img_tensor)
+                frame_count += 1
+                # Optional: Add progress logging for long videos
+                # if frame_count % 100 == 0: print(f"  Extracted {frame_count} frames...")
+
+            print(f"Finished extracting {frame_count} frames.")
         except Exception as e:
             print(f"Error extracting frames from video {video_path}: {e}")
             # Return None or potentially partially extracted frames? Let's return None for consistency.
             frame_tensors = None # Indicate failure
         finally:
-            # --- Cleanup --- 
+            # --- Cleanup ---
             if cap:
                 cap.release()
             # Delete the temporary video file regardless of extraction success/failure
@@ -701,7 +807,7 @@ class ExecuteNode:
                     print(f"Deleted temporary video file: {video_path}")
                 except OSError as e:
                     print(f"Error deleting temporary video file {video_path}: {e}")
-        
+
         return frame_tensors
 
     def download_and_load_latent(self, latent_url):
@@ -710,7 +816,7 @@ class ExecuteNode:
         cleans up the temp file, and returns the latent dictionary.
         Returns dict { "samples": tensor } or None on failure.
         """
-        max_retries = 3
+        max_retries = 5
         retry_delay = 1
         last_exception = None
         latent_path = None
@@ -724,7 +830,7 @@ class ExecuteNode:
                 print(f"Error creating temporary directory {output_dir}: {e}")
                 return None
 
-        # --- Download the latent file --- 
+        # --- Download the latent file ---
         for attempt in range(max_retries):
             latent_path = None # Reset path for each attempt
             try:
@@ -736,7 +842,7 @@ class ExecuteNode:
                 except Exception as path_e:
                     print(f"Error creating temporary latent path: {path_e}")
                     latent_path = os.path.join(output_dir, f"temp_latent_{str(int(time.time()*1000))}.latent")
-                
+
                 print(f"Attempt {attempt + 1}/{max_retries} to download latent to temp path: {latent_path}")
                 response = requests.get(latent_url, stream=True, timeout=30)
                 response.raise_for_status()
@@ -744,68 +850,283 @@ class ExecuteNode:
                 downloaded_size = 0
                 with open(latent_path, "wb") as f:
                     for chunk in response.iter_content(chunk_size=65536):
-                        if chunk:
+                        if chunk: # <<< Correct indent
                             f.write(chunk)
-                            downloaded_size += len(chunk)
-                
+                            downloaded_size += len(chunk) # <<< Correct indent
+
                 if downloaded_size > 0:
                     print(f"Temporary latent downloaded successfully: {latent_path}")
                     break # Exit retry loop on successful download
                 else:
                     print(f"Warning: Downloaded latent file is empty: {latent_path}")
-                    if os.path.exists(latent_path): os.remove(latent_path)
+                    if os.path.exists(latent_path):
+                        try: os.remove(latent_path)
+                        except OSError: pass
                     last_exception = IOError("Downloaded latent file is empty.")
+                    # Continue retry loop
 
             except (requests.exceptions.RequestException, IOError) as e:
                  print(f"Download latent attempt {attempt + 1} failed: {e}")
                  last_exception = e
                  if latent_path and os.path.exists(latent_path):
-                     try: os.remove(latent_path) 
+                     try: os.remove(latent_path)
                      except OSError: pass
-            
+                 # Continue retry loop
+
             if attempt < max_retries - 1:
                 print(f"Retrying download in {retry_delay} seconds...")
                 time.sleep(retry_delay)
                 retry_delay *= 2
-            else:
-                print(f"Failed to download latent {latent_url} after {max_retries} attempts.")
-                return None # Failed to download
+            # else: # Implicitly handled by loop ending
+            #     print(f"Failed to download latent {latent_url} after {max_retries} attempts.")
 
-        # --- Load the latent file --- 
+        # Check if download succeeded
+        if not latent_path or not os.path.exists(latent_path) or os.path.getsize(latent_path) == 0:
+             print(f"Failed to download latent {latent_url} successfully after {max_retries} attempts.")
+             if latent_path and os.path.exists(latent_path):
+                 try: os.remove(latent_path)
+                 except OSError: pass
+             return None
+
+        # --- Load the latent file ---
         loaded_latent_dict = None
         try:
-            if latent_path and os.path.exists(latent_path):
-                print(f"Loading latent from {latent_path}...")
-                # Use safetensors.torch.load_file
-                latent_content = safetensors.torch.load_file(latent_path, device="cpu") 
-                
-                if "latent_tensor" not in latent_content:
-                     raise ValueError("'latent_tensor' key not found in the loaded latent file.")
+            print(f"Loading latent from {latent_path}...")
+            # Use safetensors.torch.load_file
+            latent_content = safetensors.torch.load_file(latent_path, device="cpu")
 
-                # Apply multiplier based on LoadLatent logic
-                multiplier = 1.0
-                if "latent_format_version_0" not in latent_content:
-                    multiplier = 1.0 / 0.18215
-                    print(f"Applying multiplier {multiplier:.5f} (old latent format detected)")
-                
-                samples_tensor = latent_content["latent_tensor"].float() * multiplier
-                loaded_latent_dict = {"samples": samples_tensor}
-                print("Latent loaded successfully.")
-                
+            if "latent_tensor" not in latent_content:
+                 raise ValueError("'latent_tensor' key not found in the loaded latent file.")
+
+            # Apply multiplier based on LoadLatent logic
+            multiplier = 1.0
+            if "latent_format_version_0" not in latent_content:
+                multiplier = 1.0 / 0.18215
+                print(f"Applying multiplier {multiplier:.5f} (old latent format detected)")
+
+            samples_tensor = latent_content["latent_tensor"].float() * multiplier
+            loaded_latent_dict = {"samples": samples_tensor}
+            print("Latent loaded successfully.")
+
         except Exception as e:
             print(f"Error loading latent file {latent_path}: {e}")
             # Ensure loaded_latent_dict remains None on error
-            loaded_latent_dict = None 
+            loaded_latent_dict = None
         finally:
-            # --- Cleanup --- 
+            # --- Cleanup ---
             if latent_path and os.path.exists(latent_path):
                 try:
                     os.remove(latent_path)
                     print(f"Deleted temporary latent file: {latent_path}")
                 except OSError as e:
                     print(f"Error deleting temporary latent file {latent_path}: {e}")
-        
+
         return loaded_latent_dict
+
+    def download_and_read_text(self, text_url):
+        """
+        Downloads a .txt file, reads its content as UTF-8,
+        cleans up the temp file, and returns the text content.
+        Returns str or None on failure.
+        """
+        max_retries = 5
+        retry_delay = 1
+        last_exception = None
+        text_path = None
+        output_dir = "temp"
+
+        if not os.path.exists(output_dir):
+            try: os.makedirs(output_dir)
+            except OSError as e: print(f"Error creating temp dir {output_dir}: {e}"); return None
+
+        # --- Download the text file ---
+        for attempt in range(max_retries):
+            text_path = None
+            try:
+                try:
+                    safe_filename = f"temp_text_{os.path.basename(text_url)}_{str(int(time.time()*1000))}.txt"
+                    safe_filename = "".join(c if c.isalnum() or c in ['.', '_', '-'] else '_' for c in safe_filename)[:150]
+                    text_path = os.path.join(output_dir, safe_filename)
+                except Exception as path_e:
+                    print(f"Error creating temporary text path: {path_e}")
+                    text_path = os.path.join(output_dir, f"temp_text_{str(int(time.time()*1000))}.txt")
+
+                print(f"Attempt {attempt + 1}/{max_retries} to download text to temp path: {text_path}")
+                response = requests.get(text_url, stream=True, timeout=20) # Shorter timeout for text
+                response.raise_for_status()
+
+                downloaded_size = 0
+                with open(text_path, "wb") as f: # Write in binary first
+                    for chunk in response.iter_content(chunk_size=4096):
+                        if chunk: f.write(chunk); downloaded_size += len(chunk)
+
+                if downloaded_size > 0:
+                    print(f"Temporary text file downloaded: {text_path}")
+                    break # Success
+                else:
+                    if os.path.exists(text_path):
+                         try: os.remove(text_path)
+                         except OSError: pass
+                    last_exception = IOError("Downloaded text file is empty.")
+                    # Continue retries
+
+            except (requests.exceptions.RequestException, IOError) as e:
+                 print(f"Download text attempt {attempt + 1} failed: {e}")
+                 last_exception = e
+                 if text_path and os.path.exists(text_path):
+                     try: os.remove(text_path)
+                     except OSError: pass
+                 # Continue retries
+
+            if attempt < max_retries - 1:
+                print(f"Retrying download in {retry_delay} seconds...")
+                time.sleep(retry_delay); retry_delay *= 2
+            # else: # Implicitly handled by loop ending
+            #     print(f"Failed to download text {text_url} after {max_retries} attempts.")
+
+        # Check download success
+        if not text_path or not os.path.exists(text_path) or os.path.getsize(text_path) == 0:
+             print(f"Failed to download text {text_url} successfully after {max_retries} attempts.")
+             if text_path and os.path.exists(text_path):
+                 try: os.remove(text_path)
+                 except OSError: pass
+             return None
+
+        # --- Read the text file ---
+        read_content = None
+        try:
+            print(f"Reading text from {text_path}...")
+            # Read with UTF-8 encoding, handle potential errors
+            with open(text_path, "r", encoding="utf-8", errors="replace") as f:
+                read_content = f.read()
+            print("Text read successfully.")
+        except Exception as e:
+            print(f"Error reading text file {text_path}: {e}")
+            read_content = None
+        finally:
+            # --- Cleanup ---
+            if text_path and os.path.exists(text_path):
+                try:
+                    os.remove(text_path)
+                    print(f"Deleted temporary text file: {text_path}")
+                except OSError as e:
+                    print(f"Error deleting temporary text file {text_path}: {e}")
+
+        return read_content
+
+    # <<< Add audio download and processing function
+    def download_and_process_audio(self, audio_url):
+        """
+        Downloads an audio file, processes it using torchaudio,
+        cleans up the temp file, and returns the audio dictionary.
+        Returns dict { "waveform": tensor [Channels, Samples], "sample_rate": int } or None on failure.
+        """
+        max_retries = 5
+        retry_delay = 1
+        last_exception = None
+        audio_path = None
+        output_dir = "temp"
+
+        if not os.path.exists(output_dir):
+            try: os.makedirs(output_dir)
+            except OSError as e: print(f"Error creating temp dir {output_dir}: {e}"); return None
+
+        # --- Download the audio file ---
+        for attempt in range(max_retries):
+            audio_path = None
+            try:
+                # Generate temp filename based on URL extension if possible
+                try:
+                    basename = os.path.basename(audio_url)
+                    _, ext = os.path.splitext(basename)
+                    if not ext: ext = ".audio" # Default if no extension
+                    safe_filename = f"temp_audio_{str(int(time.time()*1000))}{ext}"
+                    safe_filename = "".join(c if c.isalnum() or c in ['.', '_', '-'] else '_' for c in safe_filename)[:150]
+                    audio_path = os.path.join(output_dir, safe_filename)
+                except Exception as path_e:
+                    print(f"Error creating temporary audio path: {path_e}")
+                    audio_path = os.path.join(output_dir, f"temp_audio_{str(int(time.time()*1000))}.tmp")
+
+                print(f"Attempt {attempt + 1}/{max_retries} to download audio to temp path: {audio_path}")
+                response = requests.get(audio_url, stream=True, timeout=60) # Longer timeout for audio/video
+                response.raise_for_status()
+
+                downloaded_size = 0
+                with open(audio_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=65536):
+                        if chunk: f.write(chunk); downloaded_size += len(chunk)
+
+                if downloaded_size > 0:
+                    print(f"Temporary audio file downloaded: {audio_path} ({downloaded_size} bytes)")
+                    break # Success
+                else:
+                    if os.path.exists(audio_path):
+                        try: os.remove(audio_path)
+                        except OSError: pass
+                    last_exception = IOError("Downloaded audio file is empty.")
+                    # Continue retries
+
+            except (requests.exceptions.RequestException, IOError) as e:
+                 print(f"Download audio attempt {attempt + 1} failed: {e}")
+                 last_exception = e
+                 if audio_path and os.path.exists(audio_path):
+                     try: os.remove(audio_path)
+                     except OSError: pass
+                 # Continue retries
+
+            if attempt < max_retries - 1:
+                print(f"Retrying download in {retry_delay} seconds...")
+                time.sleep(retry_delay); retry_delay *= 2
+            # else:
+            #     print(f"Failed to download audio {audio_url} after {max_retries} attempts.")
+
+        # Check download success
+        if not audio_path or not os.path.exists(audio_path) or os.path.getsize(audio_path) == 0:
+             print(f"Failed to download audio {audio_url} successfully after {max_retries} attempts.")
+             if audio_path and os.path.exists(audio_path):
+                 try: os.remove(audio_path)
+                 except OSError: pass
+             return None
+
+        # --- Process the audio file ---
+        processed_audio = None
+        try:
+            print(f"Processing audio from {audio_path} using torchaudio...")
+            # Use torchaudio.load to get waveform and sample rate
+            waveform, sample_rate = torchaudio.load(audio_path)
+            
+            # Ensure waveform is float32, which is common for ComfyUI audio nodes
+            if waveform.dtype != torch.float32:
+                print(f"Converting waveform from {waveform.dtype} to float32.")
+                waveform = waveform.to(torch.float32)
+                
+            # <<< Ensure the tensor is contiguous <<<
+            if not waveform.is_contiguous():
+                print("Audio waveform is not contiguous. Making it contiguous.")
+                waveform = waveform.contiguous()
+
+            # <<< ADD BATCH DIMENSION TO MATCH STANDARD COMFYUI AUDIO FORMAT <<<
+            waveform = waveform.unsqueeze(0)
+
+            # Most nodes seem to work with [channels, samples] or just [samples] if mono.
+            # torchaudio.load returns [channels, samples]. Let's stick with that.
+            print(f"Audio loaded successfully: Shape={waveform.shape}, Sample Rate={sample_rate} Hz, dtype={waveform.dtype}, Contiguous={waveform.is_contiguous()}") # <<< Added contiguous log
+            processed_audio = {"waveform": waveform, "sample_rate": sample_rate}
+
+        except Exception as e:
+            print(f"Error processing audio file {audio_path} with torchaudio: {e}")
+            processed_audio = None # Ensure it's None on error
+        finally:
+            # --- Cleanup ---
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    os.remove(audio_path)
+                    print(f"Deleted temporary audio file: {audio_path}")
+                except OSError as e:
+                    print(f"Error deleting temporary audio file {audio_path}: {e}")
+
+        return processed_audio
+
 
     def check_account_status(self, api_key, base_url):
         """
@@ -813,45 +1134,45 @@ class ExecuteNode:
         """
         if not api_key or not base_url:
             raise ValueError("API Key and Base URL are required for checking account status.")
-        
+
         url = f"{base_url}/uc/openapi/accountStatus"
         headers = {
-            "User-Agent": "ComfyUI-RH-APICall-Node/1.0", 
+            "User-Agent": "ComfyUI-RH-APICall-Node/1.0",
             "Content-Type": "application/json",
         }
         data = {"apikey": api_key}
-        
+
         max_retries = 5
         retry_delay = 1
         last_exception = None
 
         for attempt in range(max_retries):
-            response = None 
-            try:
+            response = None
+            try: # <<< Added try block
                 print(f"Attempt {attempt + 1}/{max_retries} to check account status...")
                 response = requests.post(url, json=data, headers=headers, timeout=15)
                 response.raise_for_status()
-                
+
                 result = response.json()
 
-                if result.get("code") != 0:
+                if result.get("code") != 0: # <<< Correct indent
                     api_msg = result.get('msg', 'Unknown API error')
                     print(f"API error on attempt {attempt + 1}: {api_msg}")
-                    raise Exception(f"API error getting account status: {api_msg}") 
-                
+                    raise Exception(f"API error getting account status: {api_msg}")
+
                 account_data = result.get("data")
                 if not account_data or "currentTaskCounts" not in account_data:
                     raise ValueError("Invalid response structure for account status.")
 
-                try:
+                try: # <<< Correct indent (inner try for int conversion)
                     current_task_counts = int(account_data["currentTaskCounts"])
-                    account_data["currentTaskCounts"] = current_task_counts 
+                    account_data["currentTaskCounts"] = current_task_counts
                     print("Account status check successful.")
                     return account_data # Success
-                except (ValueError, TypeError) as e:
+                except (ValueError, TypeError) as e: # <<< Correct indent
                     raise ValueError(f"Invalid value for currentTaskCounts: {account_data.get('currentTaskCounts')}. Error: {e}")
 
-            except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError, Exception) as e:
+            except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError, Exception) as e: # <<< Correct indent
                 print(f"Error on attempt {attempt + 1}/{max_retries}: {e}")
                 last_exception = e
                 if isinstance(e, json.JSONDecodeError) and response is not None:
@@ -860,11 +1181,12 @@ class ExecuteNode:
                 if attempt < max_retries - 1:
                     print(f"Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
-                    retry_delay *= 2 
+                    retry_delay *= 2
                 else:
                     print("Max retries reached for checking account status.")
                     raise Exception(f"Failed to check account status after {max_retries} attempts. Last error: {last_exception}") from last_exception
-            
+
+        # This should ideally not be reached if the loop logic is correct
         raise Exception(f"Failed to check account status after {max_retries} attempts (unexpected loop end). Last error: {last_exception}")
 
 
@@ -878,8 +1200,8 @@ class ExecuteNode:
 
         if not safe_base_url or not safe_workflow_id or not safe_api_key:
              raise ValueError("Missing required apiConfig fields: 'base_url', 'workflowId', 'apiKey'")
-        
-        url = f"{safe_base_url}/task/openapi/create" 
+
+        url = f"{safe_base_url}/task/openapi/create"
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "ComfyUI-RH-APICall-Node/1.0",
@@ -887,35 +1209,37 @@ class ExecuteNode:
         data = {
             "workflowId": safe_workflow_id,
             "apiKey": safe_api_key,
-            "nodeInfoList": nodeInfoList, 
+            "nodeInfoList": nodeInfoList,
         }
 
         max_retries = 5
         retry_delay = 1
         last_exception = None
-        
+
         for attempt in range(max_retries):
-            response = None 
-            current_last_exception = None 
+            response = None
+            current_last_exception = None
+            success = False # Flag to indicate success within try block
             try:
                 print(f"Create task attempt {attempt + 1}/{max_retries}...")
                 response = requests.post(url, json=data, headers=headers, timeout=30)
                 print(f"Create task attempt {attempt + 1}: Status code {response.status_code}")
-                response.raise_for_status() 
+                response.raise_for_status()
 
                 result = response.json()
-                
+
                 if result.get("code") == 0:
                     if "data" in result and "taskId" in result["data"] and "netWssUrl" in result["data"]:
                          print("Task created successfully.")
-                         return result 
+                         success = True # Mark as success
+                         return result # Return successful result
                     else:
                          print(f"API success code 0, but response structure invalid: {result}")
-                         current_last_exception = ValueError(f"API success code 0, but response structure invalid.") 
+                         current_last_exception = ValueError(f"API success code 0, but response structure invalid.")
                 else:
                     api_msg = result.get('msg', 'Unknown API error')
                     print(f"API error creating task (code {result.get('code')}): {api_msg}")
-                    current_last_exception = Exception(f"API error (code {result.get('code')}): {api_msg}") 
+                    current_last_exception = Exception(f"API error (code {result.get('code')}): {api_msg}")
 
             except requests.exceptions.Timeout as e:
                  print(f"Create task attempt {attempt + 1} timed out.")
@@ -927,29 +1251,25 @@ class ExecuteNode:
                  print(f"Create task attempt {attempt + 1} failed to decode JSON response.")
                  if response is not None: print(f"Raw response text: {response.text}")
                  current_last_exception = e
-            except Exception as e: 
+            except Exception as e:
                  print(f"Create task attempt {attempt + 1} unexpected error: {e}")
                  current_last_exception = e
-            
-            if current_last_exception is not None: 
-                 last_exception = current_last_exception 
+
+            # If successful, we already returned. If not successful, process the error.
+            if not success:
+                 last_exception = current_last_exception # Store the most recent error
                  if attempt < max_retries - 1:
                      print(f"Retrying task creation in {retry_delay} seconds...")
                      time.sleep(retry_delay)
                      retry_delay *= 2
-                 else:
+                 else: # Max retries reached
                      error_message = f"Failed to create task after {max_retries} attempts."
-                     if last_exception: 
+                     if last_exception:
                           error_message += f" Last error: {last_exception}"
                      print(error_message)
                      raise Exception(error_message) from last_exception
-            else:
-                 if attempt == max_retries - 1:
-                      error_message = f"Failed to create task after {max_retries} attempts (unknown reason)."
-                      if last_exception: error_message += f" Last error: {last_exception}"
-                      print(error_message)
-                      raise Exception(error_message) from last_exception
 
+        # Should not be reachable if logic is correct
         raise Exception("Task creation failed unexpectedly after retry loop.")
 
 
@@ -965,56 +1285,108 @@ class ExecuteNode:
             "Content-Type": "application/json",
         }
         data = { "taskId": task_id, "apiKey": api_key }
+
+        response = None # Define response outside try
+        result = None # Define result outside try
         
-        try:
-            response = requests.post(url, json=data, headers=headers, timeout=20)
-            print(f"Check status ({task_id}): Response Status Code: {response.status_code}")
+        # <<< Add retry loop for the network request itself <<<
+        max_retries = 5
+        retry_delay = 1
+        last_exception = None
 
-            try:
-                result = response.json()
-                print(f"Check status ({task_id}): Response JSON: {json.dumps(result, indent=2, ensure_ascii=False)}")
-            except json.JSONDecodeError:
-                print(f"Check status ({task_id}): Failed to decode JSON. Response Text: {response.text}")
-                error_msg = f"HTTP Error {response.status_code} and Invalid JSON" if response.status_code != 200 else "Invalid JSON response"
-                return {"taskStatus": "error", "error": error_msg}
+        for attempt in range(max_retries):
+            try: # <<< Outer try block for requests/JSON processing
+                print(f"Check status attempt {attempt + 1}/{max_retries} (TaskID: {task_id})...")
+                response = requests.post(url, json=data, headers=headers, timeout=20)
+                print(f"Check status ({task_id}): Response Status Code: {response.status_code}")
 
-            api_code = result.get("code")
-            api_msg = result.get("msg", "")
-            api_data = result.get("data")
+                # Process the response (JSON decoding, status checks) only if request succeeded
+                try: # <<< Inner try block for JSON decoding
+                    result = response.json()
+                    print(f"Check status ({task_id}): Response JSON: {json.dumps(result, indent=2, ensure_ascii=False)}")
+                except json.JSONDecodeError: # <<< Correct indent
+                    print(f"Check status ({task_id}): Failed to decode JSON. Response Text: {response.text}")
+                    error_msg = f"HTTP Error {response.status_code} and Invalid JSON" if response.status_code != 200 else "Invalid JSON response"
+                    # Consider this a failure for retry purposes if status code indicates error
+                    if response.status_code != 200:
+                         raise requests.exceptions.RequestException(f"HTTP Error {response.status_code} with Invalid JSON")
+                    else: # If status 200 but bad JSON, treat as terminal error for this check
+                         return {"taskStatus": "error", "error": error_msg}
 
-            if response.status_code != 200:
-                 error_detail = api_msg if api_msg else f"HTTP Error {response.status_code}"
-                 print(f"Warning: Non-200 status code ({response.status_code}). API Message: {api_msg}")
-                 return {"taskStatus": "error", "error": error_detail}
+                # Process the decoded JSON result
+                api_code = result.get("code") # <<< Correct indent
+                api_msg = result.get("msg", "") # <<< Correct indent
+                api_data = result.get("data") # <<< Correct indent
 
-            if api_code == 0 and isinstance(api_data, list) and api_data:
-                return api_data 
+                # Handle Non-200 status codes AFTER potential JSON decoding
+                if response.status_code != 200: # <<< Correct indent
+                    error_detail = api_msg if api_msg else f"HTTP Error {response.status_code}"
+                    print(f"Warning: Non-200 status code ({response.status_code}). API Message: {api_msg}")
+                    # Raise exception to trigger retry for server-side issues (e.g., 5xx)
+                    if 500 <= response.status_code < 600:
+                         raise requests.exceptions.RequestException(f"Server Error {response.status_code}: {error_detail}")
+                    else: # Treat other non-200 codes (like 4xx) as terminal for this check
+                         return {"taskStatus": "error", "error": error_detail} # <<< Correct indent
 
-            elif api_msg == "APIKEY_TASK_IS_RUNNING":
-                return {"taskStatus": "RUNNING"}
-            
-            elif api_msg == "APIKEY_TASK_IS_QUEUED":
-                 return {"taskStatus": "QUEUED"}
+                # --- If we got here, the request was successful (status 200, valid JSON) --- 
+                # Now interpret the API result
+                if api_code == 0 and isinstance(api_data, list) and api_data: # <<< Correct indent
+                    return api_data # <<< Correct indent - SUCCESS, return output data
 
-            elif api_code != 0:
-                 print(f"API Error checking status (code {api_code}): {api_msg}")
-                 return {"taskStatus": "error", "error": api_msg}
-            
-            elif api_code == 0 and (api_data is None or (isinstance(api_data, list) and not api_data)):
-                 print("Task status check returned code 0 but no data - assuming still running.")
-                 return {"taskStatus": "RUNNING"} 
+                elif api_msg == "APIKEY_TASK_IS_RUNNING": # <<< Correct indent
+                    return {"taskStatus": "RUNNING"} # <<< Correct indent - Task is running
 
-            else:
-                print(f"Unknown task status response: {result}")
-                return {"taskStatus": "unknown", "details": result}
+                elif api_msg == "APIKEY_TASK_IS_QUEUED": # <<< Correct indent
+                    return {"taskStatus": "QUEUED"} # <<< Correct indent - Task is queued
 
-        except requests.exceptions.Timeout:
-            print(f"Network timeout checking task status for {task_id}")
-            return {"taskStatus": "error", "error": "Network Timeout"}
-        except requests.exceptions.RequestException as e:
-            print(f"Network error checking task status: {e}")
-            return {"taskStatus": "error", "error": f"Network Error: {e}"}
-        except Exception as e:
-             print(f"Unexpected error checking task status: {e}")
-             return {"taskStatus": "error", "error": f"Unexpected Error: {e}"}
+                elif api_code != 0: # <<< Correct indent - API reported an error
+                    print(f"API Error checking status (code {api_code}): {api_msg}")
+                    return {"taskStatus": "error", "error": api_msg} # <<< Correct indent
+
+                elif api_code == 0 and (api_data is None or (isinstance(api_data, list) and not api_data)): # <<< Correct indent
+                    print("Task status check returned code 0 but no data - assuming still running.")
+                    return {"taskStatus": "RUNNING"} # <<< Correct indent - Assume running
+
+                else: # <<< Correct indent - Unknown successful response structure
+                    print(f"Unknown task status response: {result}")
+                    return {"taskStatus": "unknown", "details": result} # <<< Correct indent
+
+            except requests.exceptions.Timeout as e: # <<< Correct except clause indent
+                print(f"Network timeout on attempt {attempt + 1}/{max_retries} for task {task_id}")
+                last_exception = e
+                # Continue to retry loop
+            except requests.exceptions.RequestException as e: # <<< Correct except clause indent
+                print(f"Network error on attempt {attempt + 1}/{max_retries}: {e}")
+                last_exception = e
+                # Continue to retry loop
+            # Note: json.JSONDecodeError or other processing errors after successful request
+            # are handled inside the try block and return specific statuses without retry here.
+
+            # If exception occurred and not the last attempt, wait and retry
+            if last_exception is not None and attempt < max_retries - 1:
+                print(f"Retrying status check in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            elif last_exception is not None: # Max retries reached after an exception
+                 print(f"Max retries ({max_retries}) reached for status check due to network errors. Last error: {last_exception}")
+                 return {"taskStatus": "error", "error": f"Network Error after retries: {last_exception}"} # <<< Return error after retries
+        
+        # This point should theoretically not be reached if the loop handles all cases, but as a fallback:
+        print(f"Status check loop completed unexpectedly after {max_retries} attempts.")
+        return {"taskStatus": "error", "error": f"Status check failed after {max_retries} attempts. Last error: {last_exception}"}
+
+
+# <<< Add NODE_CLASS_MAPPINGS and NODE_DISPLAY_NAME_MAPPINGS
+NODE_CLASS_MAPPINGS = {
+    "RH_ExecuteNode": ExecuteNode
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "RH_ExecuteNode": "RunningHub Execute Task"
+}
+
+# <<< Standard Python entry point check (optional but good practice)
+if __name__ == "__main__":
+    # Example usage or testing code could go here
+    pass
 
