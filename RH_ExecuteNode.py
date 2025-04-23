@@ -12,6 +12,7 @@ import comfy.utils # Import comfy utils for ProgressBar
 import cv2 # <<< Added import for OpenCV
 import safetensors.torch # <<< Added safetensors import
 import torchaudio 
+import torch.nn.functional as F # <<< Add F for padding
 
 # Try importing folder_paths safely
 try:
@@ -478,13 +479,60 @@ class ExecuteNode:
                     # Process Images -> Add to image_data_list
                     if image_urls:
                         print(f"Processing {len(image_urls)} images...")
+                        # Download all images first
+                        downloaded_images = []
                         for url in image_urls:
                             try:
                                 img_tensor = self.download_image(url)
                                 if img_tensor is not None:
-                                    image_data_list.append(img_tensor)
+                                    downloaded_images.append(img_tensor)
+                                    print(f"Successfully downloaded image from {url} (Shape: {img_tensor.shape})")
+                                # Remove the break to process all images
+                                # print(f"Successfully processed first image from {url}. Skipping remaining images.")
+                                # break # Process only the first image
                             except Exception as img_e:
                                 print(f"Error downloading image {url}: {img_e}")
+                        
+                        # If images were downloaded, find max dimensions and pad
+                        if downloaded_images:
+                            if len(downloaded_images) > 1:
+                                print("Multiple images found. Checking dimensions and padding if necessary...")
+                                max_h = 0
+                                max_w = 0
+                                for img in downloaded_images:
+                                    # Shape is [1, H, W, C]
+                                    max_h = max(max_h, img.shape[1])
+                                    max_w = max(max_w, img.shape[2])
+                                print(f"Max dimensions found: Height={max_h}, Width={max_w}")
+
+                                padded_images = []
+                                for i, img_tensor in enumerate(downloaded_images):
+                                    _, h, w, _ = img_tensor.shape
+                                    if h < max_h or w < max_w:
+                                        pad_h_total = max_h - h
+                                        pad_w_total = max_w - w
+                                        pad_top = pad_h_total // 2
+                                        pad_bottom = pad_h_total - pad_top
+                                        pad_left = pad_w_total // 2
+                                        pad_right = pad_w_total - pad_left
+                                        
+                                        # Permute [1, H, W, C] -> [1, C, H, W] for F.pad
+                                        img_permuted = img_tensor.permute(0, 3, 1, 2)
+                                        # Pad (pad is specified for last dimensions first: W, then H)
+                                        padded_permuted = F.pad(img_permuted, (pad_left, pad_right, pad_top, pad_bottom), "constant", 0)
+                                        # Permute back [1, C, H, W] -> [1, H, W, C]
+                                        padded_img = padded_permuted.permute(0, 2, 3, 1)
+                                        print(f"  Padded image {i+1} from {h}x{w} to {max_h}x{max_w}")
+                                        padded_images.append(padded_img)
+                                    else:
+                                        print(f"  Image {i+1} already has max dimensions.")
+                                        padded_images.append(img_tensor) # Already max size
+                                image_data_list = padded_images # Use the padded list for concatenation
+                            else:
+                                # Only one image, no padding needed, just use it
+                                print("Only one image found, no padding needed.")
+                                image_data_list = downloaded_images
+                        # else: image_data_list remains empty
 
                     # Process Videos (extract frames) -> Add to frame_data_list
                     if video_urls:

@@ -1,0 +1,238 @@
+{
+  "last_node_id": 13,
+  "last_link_id": 14,
+  "nodes": [
+    {
+      "id": 6,
+      "type": "RH_SettingsNode",
+      "pos": [
+        1335.6798095703125,
+        401.46697998046875
+      ],
+      "size": [
+        315,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRUCT",
+          "label": "STRUCT",
+          "type": "STRUCT",
+          "shape": 3,
+          "links": [
+            8
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
+        "Node name for S&R": "RH_SettingsNode"
+      },
+      "widgets_values": [
+        "https://www.runninghub.cn",
+        "ed37fbdd79c34a7ca612aedbe5cea13e",
+        "1915099205092970498"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "RH_ExecuteNode",
+      "pos": [
+        1755.1820068359375,
+        391.4641418457031
+      ],
+      "size": [
+        315,
+        162
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apiConfig",
+          "label": "apiConfig",
+          "type": "STRUCT",
+          "link": 8
+        },
+        {
+          "name": "nodeInfoList",
+          "label": "nodeInfoList",
+          "type": "ARRAY",
+          "shape": 7,
+          "link": null,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "label": "images",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [],
+          "slot_index": 0
+        },
+        {
+          "name": "video_frames",
+          "label": "video_frames",
+          "type": "IMAGE",
+          "links": [
+            14
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "latent",
+          "label": "latent",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "text",
+          "label": "text",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "audio",
+          "label": "audio",
+          "type": "AUDIO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
+        "Node name for S&R": "RH_ExecuteNode"
+      },
+      "widgets_values": [
+        600,
+        3
+      ]
+    },
+    {
+      "id": 13,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        2258.30419921875,
+        312.5622253417969
+      ],
+      "size": [
+        214.7587890625,
+        542.7587890625
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "label": "images",
+          "type": "IMAGE",
+          "link": 14
+        },
+        {
+          "name": "audio",
+          "label": "audio",
+          "type": "AUDIO",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "label": "meta_batch",
+          "type": "VHS_BatchManager",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "vae",
+          "label": "vae",
+          "type": "VAE",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "label": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "df55f01d1df2f7bf5cc772294bc2e6d8bab22d66",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 30,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "video/h264-mp4",
+        "pix_fmt": "yuv420p",
+        "crf": 19,
+        "save_metadata": true,
+        "trim_to_audio": false,
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00018.mp4",
+            "subfolder": "",
+            "type": "output",
+            "format": "video/h264-mp4",
+            "frame_rate": 30,
+            "workflow": "AnimateDiff_00018.png",
+            "fullpath": "D:\\ComfyUI_windows_portable\\ComfyUI\\output\\AnimateDiff_00018.mp4"
+          }
+        }
+      }
+    }
+  ],
+  "links": [
+    [
+      8,
+      6,
+      0,
+      10,
+      0,
+      "STRUCT"
+    ],
+    [
+      14,
+      10,
+      1,
+      13,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.3190278677309182,
+      "offset": [
+        -1193.309900431111,
+        -6.93960225853351
+      ]
+    },
+    "ue_links": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

@@ -9,44 +9,47 @@
         66,
         1291
       ],
-      "size": {
-        "0": 330,
-        "1": 106
-      },
+      "size": [
+        330,
+        126
+      ],
       "flags": {},
       "order": 3,
       "mode": 0,
       "inputs": [
         {
           "name": "previousNodeInfoList",
+          "label": "previousNodeInfoList",
           "type": "ARRAY",
-          "link": null,
-          "label": "previousNodeInfoList"
+          "shape": 7,
+          "link": null
         },
         {
           "name": "fieldValue",
+          "label": "fieldValue",
           "type": "STRING",
-          "link": 24,
           "widget": {
             "name": "fieldValue"
           },
-          "slot_index": 1,
-          "label": "fieldValue"
+          "link": 24,
+          "slot_index": 1
         }
       ],
       "outputs": [
         {
           "name": "ARRAY",
+          "label": "ARRAY",
           "type": "ARRAY",
+          "shape": 3,
           "links": [
             13
           ],
-          "shape": 3,
-          "label": "ARRAY",
           "slot_index": 0
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
         "Node name for S&R": "RH_NodeInfoListNode"
       },
       "widgets_values": [
@@ -62,34 +65,37 @@
         68,
         1440
       ],
-      "size": {
-        "0": 330,
-        "1": 106
-      },
+      "size": [
+        330,
+        106
+      ],
       "flags": {},
       "order": 4,
       "mode": 0,
       "inputs": [
         {
           "name": "previousNodeInfoList",
+          "label": "previousNodeInfoList",
           "type": "ARRAY",
-          "link": 13,
-          "label": "previousNodeInfoList"
+          "shape": 7,
+          "link": 13
         }
       ],
       "outputs": [
         {
           "name": "ARRAY",
+          "label": "ARRAY",
           "type": "ARRAY",
+          "shape": 3,
           "links": [
             18
           ],
-          "shape": 3,
-          "label": "ARRAY",
           "slot_index": 0
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
         "Node name for S&R": "RH_NodeInfoListNode"
       },
       "widgets_values": [
@@ -105,34 +111,37 @@
         67,
         1591
       ],
-      "size": {
-        "0": 330,
-        "1": 106
-      },
+      "size": [
+        330,
+        106
+      ],
       "flags": {},
       "order": 5,
       "mode": 0,
       "inputs": [
         {
           "name": "previousNodeInfoList",
+          "label": "previousNodeInfoList",
           "type": "ARRAY",
-          "link": 18,
-          "label": "previousNodeInfoList"
+          "shape": 7,
+          "link": 18
         }
       ],
       "outputs": [
         {
           "name": "ARRAY",
+          "label": "ARRAY",
           "type": "ARRAY",
+          "shape": 3,
           "links": [
             21
           ],
-          "shape": 3,
-          "label": "ARRAY",
           "slot_index": 0
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
         "Node name for S&R": "RH_NodeInfoListNode"
       },
       "widgets_values": [
@@ -142,76 +151,33 @@
       ]
     },
     {
-      "id": 30,
-      "type": "RH_ExecuteNode",
-      "pos": [
-        551,
-        1315
-      ],
-      "size": {
-        "0": 315,
-        "1": 102
-      },
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "apiConfig",
-          "type": "STRUCT",
-          "link": 20,
-          "label": "apiConfig"
-        },
-        {
-          "name": "nodeInfoList",
-          "type": "ARRAY",
-          "link": 21,
-          "label": "nodeInfoList"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "links": [
-            22
-          ],
-          "shape": 3,
-          "label": "images",
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "RH_ExecuteNode"
-      },
-      "widgets_values": [
-        600,
-        2
-      ]
-    },
-    {
       "id": 27,
       "type": "SaveImage",
       "pos": [
         957,
         1049
       ],
-      "size": {
-        "0": 545.910400390625,
-        "1": 761.0469360351562
-      },
+      "size": [
+        545.910400390625,
+        761.0469360351562
+      ],
       "flags": {},
       "order": 7,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
+          "label": "images",
           "type": "IMAGE",
-          "link": 22,
-          "label": "图像"
+          "link": 22
         }
       ],
-      "properties": {},
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.28",
+        "Node name for S&R": "SaveImage"
+      },
       "widgets_values": [
         "ComfyUI"
       ]
@@ -223,26 +189,29 @@
         72,
         1132
       ],
-      "size": {
-        "0": 315,
-        "1": 106
-      },
+      "size": [
+        315,
+        106
+      ],
       "flags": {},
       "order": 0,
       "mode": 0,
+      "inputs": [],
       "outputs": [
         {
           "name": "STRUCT",
+          "label": "STRUCT",
           "type": "STRUCT",
+          "shape": 3,
           "links": [
             20
           ],
-          "shape": 3,
-          "label": "STRUCT",
           "slot_index": 0
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
         "Node name for S&R": "RH_SettingsNode"
       },
       "widgets_values": [
@@ -258,30 +227,35 @@
         -325,
         1298
       ],
-      "size": {
-        "0": 315,
-        "1": 82
-      },
+      "size": [
+        315,
+        106
+      ],
       "flags": {},
       "order": 1,
       "mode": 0,
+      "inputs": [],
       "outputs": [
         {
           "name": "seed",
+          "label": "seed",
           "type": "INT",
+          "shape": 3,
           "links": [
             23
           ],
-          "shape": 3,
           "slot_index": 0
         }
       ],
       "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "98273b37f20dafb4b28316b8d6e45bf28e4130fe",
         "Node name for S&R": "easy seed"
       },
       "widgets_values": [
-        497954776275195,
-        "randomize"
+        661888457586111,
+        "randomize",
+        null
       ]
     },
     {
@@ -291,36 +265,114 @@
         -201,
         1209
       ],
-      "size": {
-        "0": 210,
-        "1": 26
-      },
+      "size": [
+        210,
+        26
+      ],
       "flags": {},
       "order": 2,
       "mode": 0,
       "inputs": [
         {
           "name": "anything",
+          "label": "anything",
           "type": "*",
-          "link": 23,
-          "label": "anything"
+          "link": 23
         }
       ],
       "outputs": [
         {
           "name": "STRING",
+          "label": "STRING",
           "type": "STRING",
+          "shape": 3,
           "links": [
             24
           ],
-          "shape": 3,
-          "label": "STRING",
           "slot_index": 0
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
         "Node name for S&R": "RH_Utils"
-      }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 30,
+      "type": "RH_ExecuteNode",
+      "pos": [
+        551,
+        1315
+      ],
+      "size": [
+        315,
+        162
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apiConfig",
+          "label": "apiConfig",
+          "type": "STRUCT",
+          "link": 20
+        },
+        {
+          "name": "nodeInfoList",
+          "label": "nodeInfoList",
+          "type": "ARRAY",
+          "shape": 7,
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "label": "images",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [
+            22
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "video_frames",
+          "label": "video_frames",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "latent",
+          "label": "latent",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "text",
+          "label": "text",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "audio",
+          "label": "audio",
+          "type": "AUDIO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
+        "Node name for S&R": "RH_ExecuteNode"
+      },
+      "widgets_values": [
+        600,
+        3
+      ]
     }
   ],
   "links": [
@@ -385,13 +437,17 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 1.4122927695244514,
+      "scale": 0.9481993680645889,
       "offset": [
-        830.4433930849251,
-        -892.2659737903076
+        566.524353466392,
+        -872.7070128111055
       ]
     },
-    "ue_links": []
+    "ue_links": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
   },
   "version": 0.4
 }
