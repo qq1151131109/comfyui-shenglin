@@ -66,11 +66,15 @@ class ExecuteNode:
             self.task_completed = True
 
             if self.pbar:
-                # Ensure internal step count reflects completion
-                self.current_steps = self.total_nodes
-                # Use update_absolute for the final state
-                self.pbar.update_absolute(1.0)
-                print(f"Progress Finalized: {self.total_nodes}/{self.total_nodes} (100.0%)")
+                # Only force update to 100% if update_progress didn't already reach it
+                if self.current_steps < self.total_nodes:
+                    print(f"Forcing progress bar to 100% as final step.")
+                    self.current_steps = self.total_nodes # Ensure internal counter matches
+                    self.pbar.update_absolute(1.0)
+                    print(f"Progress Finalized: {self.total_nodes}/{self.total_nodes} (100.0%)")
+                else:
+                    # If current_steps already == total_nodes, update_progress handled the last visual update
+                    print(f"Progress already at 100% ({self.current_steps}/{self.total_nodes}). Finalization complete.")
             else:
                  print("Progress bar not available during finalization.")
 
@@ -84,10 +88,7 @@ class ExecuteNode:
             "optional": {
                 "nodeInfoList": ("ARRAY", {"default": []}),
                 "run_timeout": ("INT", {"default": 600}),
-                # query_interval is no longer used for the main loop timing
-                # "query_interval": ("INT", {"default": 10}), 
                 "concurrency_limit": ("INT", {"default": 1, "min": 1}),
-                "estimated_total_nodes": ("INT", {"default": cls.ESTIMATED_TOTAL_NODES, "min": 1}),
             },
         }
 
@@ -184,8 +185,45 @@ class ExecuteNode:
         print("Task completion timeout after null node signal - attempting forced completion.")
         self.complete_progress()
 
+    def get_workflow_node_count(self, api_key, base_url, workflow_id):
+        """Get the total number of nodes from workflow JSON."""
+        url = f"{base_url}/api/openapi/getJsonApiFormat"
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "ComfyUI-RH-APICall-Node/1.0",
+        }
+        data = {
+            "apiKey": api_key,
+            "workflowId": workflow_id
+        }
+
+        try:
+            response = requests.post(url, json=data, headers=headers, timeout=30)
+            response.raise_for_status()
+            result = response.json()
+
+            if result.get("code") != 0:
+                raise Exception(f"API error getting workflow: {result.get('msg', 'Unknown error')}")
+
+            workflow_json = result.get("data", {}).get("prompt")
+            if not workflow_json:
+                raise Exception("No workflow data found in response")
+
+            # Parse the workflow JSON
+            workflow_data = json.loads(workflow_json)
+            
+            # Count the number of nodes
+            node_count = len(workflow_data)
+            print(f"Workflow contains {node_count} nodes")
+            return node_count
+
+        except Exception as e:
+            print(f"Error getting workflow node count: {e}")
+            # Return default value if API call fails
+            return self.ESTIMATED_TOTAL_NODES
+
     # --- Main Process Method ---
-    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1, estimated_total_nodes=ESTIMATED_TOTAL_NODES):
+    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1):
         # Reset state
         with self.node_lock: # Use lock for resetting shared state
             self.executed_nodes.clear()
@@ -194,9 +232,24 @@ class ExecuteNode:
             self.prompt_tips = "{}"
             self.current_steps = 0 # Reset step counter
 
-        # 设置总节点数并初始化进度条
-        self.total_nodes = max(1, estimated_total_nodes)
-        print(f"Using total nodes for progress: {self.total_nodes}")
+        # Get workflow node count from API
+        try:
+            api_key = apiConfig.get("apiKey")
+            base_url = apiConfig.get("base_url")
+            workflow_id = apiConfig.get("workflowId")
+            
+            if not all([api_key, base_url, workflow_id]):
+                raise ValueError("Missing required apiConfig fields: apiKey, base_url, or workflowId")
+
+            # Get actual node count from workflow
+            actual_node_count = self.get_workflow_node_count(api_key, base_url, workflow_id)
+            # Use the actual node count directly
+            self.total_nodes = actual_node_count
+            print(f"Using actual total nodes for progress: {self.total_nodes}")
+        except Exception as e:
+            print(f"Error getting workflow node count, using default value: {e}")
+            self.total_nodes = self.ESTIMATED_TOTAL_NODES
+            print(f"Using default total nodes for progress: {self.total_nodes}")
 
         # Initialize ComfyUI progress bar
         self.pbar = comfy.utils.ProgressBar(self.total_nodes)
