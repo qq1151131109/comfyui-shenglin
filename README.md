@@ -5,7 +5,7 @@
 ## 主要更新亮点
 
 *   **全面的输出支持**:
-    *   **新增**: 支持 images、video frames、Latent、Text、Audio 文件输出，兼容 ComfyUI 标准格式。
+    *   **新增**: 支持 images、video frames、Latent、Text、Audio 文件输出。
 
 *   **实时进度与监控**:
     *   增加了 ComfyUI **进度条** 显示，并提供任务状态反馈。
