@@ -1,7 +1,7 @@
 import requests
 import time
 import json
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import numpy as np
 import torch
@@ -10,6 +10,7 @@ import websocket  # 需要安装 websocket-client 包
 import threading
 import comfy.utils # Import comfy utils for ProgressBar
 import cv2 # <<< Added import for OpenCV
+import safetensors.torch # <<< Added safetensors import
 
 # Try importing folder_paths safely
 try:
@@ -93,8 +94,8 @@ class ExecuteNode:
             },
         }
 
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("images",)
+    RETURN_TYPES = ("IMAGE", "LATENT")
+    RETURN_NAMES = ("images", "latent")
 
     CATEGORY = "RunningHub"
     FUNCTION = "process"
@@ -398,20 +399,24 @@ class ExecuteNode:
         return self.process_task_output(task_id, api_key, base_url)
 
     def process_task_output(self, task_id, api_key, base_url):
-        """处理任务输出，包含轮询等待机制。现在视频会被提取成帧。"""
+        """Handles task output, including images, video frames, and latents."""
         max_retries = 30
         retry_interval = 1
         max_retry_interval = 5
+        image_data_list = []
+        latent_data = None # Store the first valid latent found
 
         for attempt in range(max_retries):
+            task_status_result = None
             try:
                 task_status_result = self.check_task_status(task_id, api_key, base_url)
                 print(f"Check output attempt {attempt + 1}/{max_retries}")
-                print("Task Status Result:", json.dumps(task_status_result, indent=2, ensure_ascii=False))
+                # Limit excessive logging of full status unless debugging
+                # print("Task Status Result:", json.dumps(task_status_result, indent=2, ensure_ascii=False))
 
                 if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") in ["RUNNING", "QUEUED"]:
                     wait_time = min(retry_interval * (1.5 ** attempt), max_retry_interval)
-                    print(f"Task still running, waiting {wait_time:.1f} seconds before next check...")
+                    print(f"Task still running ({task_status_result.get('taskStatus')}), waiting {wait_time:.1f} seconds...")
                     time.sleep(wait_time)
                     continue
 
@@ -419,6 +424,7 @@ class ExecuteNode:
                     print("Got valid output result, processing files...")
                     image_urls = []
                     video_urls = []
+                    latent_urls = []
 
                     for output in task_status_result:
                         if isinstance(output, dict):
@@ -428,56 +434,124 @@ class ExecuteNode:
                                 file_type_lower = file_type.lower()
                                 if file_type_lower in ["png", "jpg", "jpeg", "webp", "bmp", "gif"]:
                                     image_urls.append(file_url)
-                                # Treat video files as sources for images
                                 elif file_type_lower in ["mp4", "avi", "mov", "webm"]:
                                     video_urls.append(file_url)
+                                elif file_type_lower == "latent": # <<< Handle latent files
+                                    latent_urls.append(file_url)
 
-                    # Process images and extracted video frames
-                    image_data_list = []
+                    # Process Images
                     if image_urls:
                         print(f"Downloading {len(image_urls)} images...")
                         for url in image_urls:
                             try:
-                                print(f"Downloading image: {url}")
-                                image_tensor = self.download_image(url)
-                                if image_tensor is not None:
-                                    image_data_list.append(image_tensor)
+                                img_tensor = self.download_image(url)
+                                if img_tensor is not None:
+                                    image_data_list.append(img_tensor)
                             except Exception as img_e:
                                 print(f"Error downloading image {url}: {img_e}")
 
-                    # Download videos and extract frames
+                    # Process Videos (extract frames)
                     if video_urls:
-                        print(f"Downloading and extracting frames from {len(video_urls)} videos...")
+                        print(f"Processing {len(video_urls)} videos for frames...")
                         for url in video_urls:
                             try:
-                                print(f"Processing video: {url}")
-                                # download_video now returns a list of frame tensors
                                 frame_tensors = self.download_video(url)
                                 if frame_tensors:
                                     image_data_list.extend(frame_tensors)
-                                    print(f"Extracted {len(frame_tensors)} frames from {url}")
+                                    print(f"Extracted {len(frame_tensors)} frames from video {url}")
                             except Exception as vid_e:
                                 print(f"Error processing video {url}: {vid_e}")
-
-                    if image_data_list:
-                        print(f"Successfully got results: {len(image_data_list)} images (including extracted frames)")
-                        # Return only images, the second element is now always empty
-                        return (image_data_list,)
-                    else:
-                        print("No valid images or video frames could be processed.")
-                        return ([],) # Return empty list for images
+                                
+                    # Process Latents (load the first one found)
+                    if latent_urls and latent_data is None: # Only process if we haven't found one yet
+                        print(f"Processing {len(latent_urls)} latent file(s)...")
+                        for url in latent_urls:
+                            try:
+                                loaded_latent = self.download_and_load_latent(url)
+                                if loaded_latent is not None:
+                                    latent_data = loaded_latent
+                                    print(f"Successfully loaded latent from {url}")
+                                    break # Stop after loading the first successful latent
+                            except Exception as lat_e:
+                                print(f"Error processing latent {url}: {lat_e}")
+                                
+                    # Task processing complete, break the retry loop
+                    break
 
                 if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") == "error":
-                    print(f"Task error: {task_status_result.get('error', 'Unknown error')}")
-                    return ([],) # Return empty list for images
+                    print(f"Task failed with error: {task_status_result.get('error', 'Unknown error')}")
+                    break # Stop retrying on error
+
+                # If status is not RUNNING/QUEUED/List/Error, wait and retry (e.g., 'unknown' or unexpected format)
+                print(f"Unexpected task status or empty result, waiting...")
+                time.sleep(min(retry_interval * (1.5 ** attempt), max_retry_interval))
 
             except Exception as e:
-                print(f"Error checking task status (attempt {attempt + 1}): {e}")
-                time.sleep(retry_interval)
+                print(f"Error checking/processing task status (attempt {attempt + 1}): {e}")
+                # Check if response suggests an error that shouldn't be retried
+                if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") == "error":
+                     print("Stopping retries due to reported task error.")
+                     break
+                time.sleep(retry_interval * (1.5 ** attempt)) # Backoff before next attempt
 
-        print(f"Failed to get valid output after {max_retries} attempts")
-        return ([],) # Return empty list for images
+        # --- Final Output Generation --- 
+        
+        # Provide placeholder image if none were generated/extracted
+        if not image_data_list:
+            print("No images generated, creating placeholder.")
+            image_data_list.append(self.create_placeholder_image()) 
+            
+        # Provide placeholder latent if none was loaded
+        if latent_data is None:
+            print("No latent generated, creating placeholder.")
+            latent_data = self.create_placeholder_latent()
 
+        # Combine image tensors into a single batch if multiple images exist
+        final_image_batch = torch.cat(image_data_list, dim=0) if image_data_list else None
+
+        # Ensure we return a tuple matching RETURN_TYPES = ("IMAGE", "LATENT")
+        # Return None for images if the placeholder couldn't even be created (highly unlikely)
+        return (final_image_batch, latent_data)
+
+    def create_placeholder_image(self, text="No image/video output", width=256, height=64):
+        """Creates a placeholder image tensor with text."""
+        img = Image.new('RGB', (width, height), color = (50, 50, 50)) # Dark gray background
+        d = ImageDraw.Draw(img)
+        try:
+            # Attempt to load a simple default font (may vary by system)
+            # A small default size to fit the image
+            fontsize = 15
+            # Try common system font names/paths
+            font_paths = ["arial.ttf", "LiberationSans-Regular.ttf", "DejaVuSans.ttf"]
+            font = None
+            for fp in font_paths:
+                try:
+                    font = ImageFont.truetype(fp, fontsize)
+                    break
+                except IOError:
+                    continue
+            if font is None:
+                 font = ImageFont.load_default() # Fallback to PIL default bitmap font
+                 print("Warning: Could not load system font, using PIL default.")
+
+            # Calculate text position for centering
+            text_bbox = d.textbbox((0, 0), text, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            text_x = (width - text_width) / 2
+            text_y = (height - text_height) / 2
+            d.text((text_x, text_y), text, fill=(200, 200, 200), font=font) # Light gray text
+        except Exception as e:
+            print(f"Error adding text to placeholder image: {e}. Returning image without text.")
+        
+        img_array = np.array(img).astype(np.float32) / 255.0
+        img_tensor = torch.from_numpy(img_array)[None,] # Add batch dimension [1, H, W, C]
+        return img_tensor
+
+    def create_placeholder_latent(self, batch_size=1, channels=4, height=64, width=64):
+        """Creates a placeholder latent tensor dictionary."""
+        latent = torch.zeros([batch_size, channels, height, width])
+        return {"samples": latent}
 
     def download_image(self, image_url):
         """
@@ -630,6 +704,108 @@ class ExecuteNode:
         
         return frame_tensors
 
+    def download_and_load_latent(self, latent_url):
+        """
+        Downloads a .latent file, loads it using safetensors, applies multiplier,
+        cleans up the temp file, and returns the latent dictionary.
+        Returns dict { "samples": tensor } or None on failure.
+        """
+        max_retries = 3
+        retry_delay = 1
+        last_exception = None
+        latent_path = None
+        output_dir = "temp" # Use temp directory
+
+        # Ensure temp directory exists
+        if not os.path.exists(output_dir):
+            try:
+                os.makedirs(output_dir)
+            except OSError as e:
+                print(f"Error creating temporary directory {output_dir}: {e}")
+                return None
+
+        # --- Download the latent file --- 
+        for attempt in range(max_retries):
+            latent_path = None # Reset path for each attempt
+            try:
+                # Generate a unique temporary filename
+                try:
+                    safe_filename = f"temp_latent_{os.path.basename(latent_url)}_{str(int(time.time()*1000))}.latent"
+                    safe_filename = "".join(c if c.isalnum() or c in ['.', '_', '-'] else '_' for c in safe_filename)[:150]
+                    latent_path = os.path.join(output_dir, safe_filename)
+                except Exception as path_e:
+                    print(f"Error creating temporary latent path: {path_e}")
+                    latent_path = os.path.join(output_dir, f"temp_latent_{str(int(time.time()*1000))}.latent")
+                
+                print(f"Attempt {attempt + 1}/{max_retries} to download latent to temp path: {latent_path}")
+                response = requests.get(latent_url, stream=True, timeout=30)
+                response.raise_for_status()
+
+                downloaded_size = 0
+                with open(latent_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=65536):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded_size += len(chunk)
+                
+                if downloaded_size > 0:
+                    print(f"Temporary latent downloaded successfully: {latent_path}")
+                    break # Exit retry loop on successful download
+                else:
+                    print(f"Warning: Downloaded latent file is empty: {latent_path}")
+                    if os.path.exists(latent_path): os.remove(latent_path)
+                    last_exception = IOError("Downloaded latent file is empty.")
+
+            except (requests.exceptions.RequestException, IOError) as e:
+                 print(f"Download latent attempt {attempt + 1} failed: {e}")
+                 last_exception = e
+                 if latent_path and os.path.exists(latent_path):
+                     try: os.remove(latent_path) 
+                     except OSError: pass
+            
+            if attempt < max_retries - 1:
+                print(f"Retrying download in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                print(f"Failed to download latent {latent_url} after {max_retries} attempts.")
+                return None # Failed to download
+
+        # --- Load the latent file --- 
+        loaded_latent_dict = None
+        try:
+            if latent_path and os.path.exists(latent_path):
+                print(f"Loading latent from {latent_path}...")
+                # Use safetensors.torch.load_file
+                latent_content = safetensors.torch.load_file(latent_path, device="cpu") 
+                
+                if "latent_tensor" not in latent_content:
+                     raise ValueError("'latent_tensor' key not found in the loaded latent file.")
+
+                # Apply multiplier based on LoadLatent logic
+                multiplier = 1.0
+                if "latent_format_version_0" not in latent_content:
+                    multiplier = 1.0 / 0.18215
+                    print(f"Applying multiplier {multiplier:.5f} (old latent format detected)")
+                
+                samples_tensor = latent_content["latent_tensor"].float() * multiplier
+                loaded_latent_dict = {"samples": samples_tensor}
+                print("Latent loaded successfully.")
+                
+        except Exception as e:
+            print(f"Error loading latent file {latent_path}: {e}")
+            # Ensure loaded_latent_dict remains None on error
+            loaded_latent_dict = None 
+        finally:
+            # --- Cleanup --- 
+            if latent_path and os.path.exists(latent_path):
+                try:
+                    os.remove(latent_path)
+                    print(f"Deleted temporary latent file: {latent_path}")
+                except OSError as e:
+                    print(f"Error deleting temporary latent file {latent_path}: {e}")
+        
+        return loaded_latent_dict
 
     def check_account_status(self, api_key, base_url):
         """
