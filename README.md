@@ -1,7 +1,23 @@
+# 更新说明 - [2025-04-24]
+
+本次重大升级，增强了功能并大幅提升了稳定性。
+
+## 主要更新亮点
+
+*   **全面的输出支持**:
+    *   **新增**: 支持 images、video frames、Latent、Text、Audio 文件输出。
+
+*   **实时进度与监控**:
+    *   增加了 ComfyUI **进度条** 显示，并提供任务状态反馈,不再需要轮询任务结束。
+*   **增强的可靠性**:
+    *   **网络鲁棒性**: 
+    *   **并发控制**: 增加了任务并发限制检查。专业版用户支持3并发。
+
 # ComfyUI 插件：调用和执行 RunningHub 工作流
 
 该插件用于在本地 ComfyUI 环境中便捷地调用和执行 RunningHub 上的工作流。它是对 [RunningHub API 文档](https://gold-spleen-bf1.notion.site/RunningHub-API-1432ece0cf5f8026aaa8e4b9190f6f8e) 的一个 ComfyUI 实现。在使用本插件之前建议花2分钟阅读。如果你希望扩展该插件，或在使用过程中遇到问题，请参考上述文档。
 ### 可以通过本插件，将RunningHub方便的接入[Photoshop](https://github.com/NimaNzrii/comfyui-photoshop)，[变现宝](https://github.com/zhulu111/ComfyUI_Bxb) 等各种插件
+
 ## 使用步骤
 
 ### 1. 安装插件
@@ -20,11 +36,11 @@ git clone https://github.com/HM-RunningHub/ComfyUI_RH_APICall
 ![image](https://github.com/user-attachments/assets/e6d76026-13bb-4ee7-8bcf-2cbc64a046ce)
 
 ### 5. 实例(工作流json在examples目录下)
+#### ALL IN One
+![image](https://github.com/user-attachments/assets/0dfe5998-206b-491f-a740-82938eb04e8d)
 #### 文生图：
 ![image](https://github.com/user-attachments/assets/3b00beeb-1d0d-4fc2-b635-d31cfcf06887)
 #### 图生图：
 ![image](https://github.com/user-attachments/assets/552bf53c-8913-474e-838a-c110e9dbc6d0)
 #### 连接Photoshop
 ![image](https://github.com/user-attachments/assets/72c7ff4a-f6ef-43d5-a95c-242fbff5aafc)
-#### 对RH输出的多张图片，再做进一步灵活处理
-![image](https://github.com/user-attachments/assets/d28488f4-c5e5-436d-a9fd-50f9083ef3ff)
