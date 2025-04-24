@@ -3,16 +3,14 @@
 本次重大升级，增强了功能并大幅提升了稳定性。
 
 ## 主要更新亮点
-
+*   **支持调用AI WebAPP**:
+    
 *   **全面的输出支持**:
     *   **新增**: 支持 images、video frames、Latent、Text、Audio 文件输出。
 
 *   **实时进度与监控**:
     *   增加了 ComfyUI **进度条** 显示，并提供任务状态反馈,不再需要轮询任务结束。
-*   **增强的可靠性**:
-    *   **网络鲁棒性**: 
-    *   **并发控制**: 增加了任务并发限制检查。专业版用户支持3并发。
-
+*   **增强的可靠性、并发控制**:
 # ComfyUI 插件：调用和执行 RunningHub 工作流
 
 该插件用于在本地 ComfyUI 环境中便捷地调用和执行 RunningHub 上的工作流。它是对 [RunningHub API 文档](https://gold-spleen-bf1.notion.site/RunningHub-API-1432ece0cf5f8026aaa8e4b9190f6f8e) 的一个 ComfyUI 实现。在使用本插件之前建议花2分钟阅读。如果你希望扩展该插件，或在使用过程中遇到问题，请参考上述文档。
