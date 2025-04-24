@@ -93,6 +93,7 @@ class ExecuteNode:
                 "nodeInfoList": ("ARRAY", {"default": []}),
                 "run_timeout": ("INT", {"default": 600}),
                 "concurrency_limit": ("INT", {"default": 1, "min": 1}),
+                "is_ai_app_task": ("BOOLEAN", {"default": False}),
             },
         }
 
@@ -249,7 +250,7 @@ class ExecuteNode:
         raise Exception(f"Failed to get workflow node count after {max_retries} attempts (unexpected loop end). Last error: {last_exception}")
 
     # --- Main Process Method ---
-    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1):
+    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1, is_ai_app_task=False):
         # Reset state
         with self.node_lock: # Use lock for resetting shared state
             self.executed_nodes.clear()
@@ -258,38 +259,57 @@ class ExecuteNode:
             self.prompt_tips = "{}"
             self.current_steps = 0 # Reset step counter
 
-        # Get workflow node count from API
-        try:
-            api_key = apiConfig.get("apiKey")
-            base_url = apiConfig.get("base_url")
-            workflow_id = apiConfig.get("workflowId")
-            
-            if not all([api_key, base_url, workflow_id]):
-                raise ValueError("Missing required apiConfig fields: apiKey, base_url, or workflowId")
+        # Get config values
+        api_key = apiConfig.get("apiKey")
+        base_url = apiConfig.get("base_url")
 
-            # Get actual node count from workflow
-            actual_node_count = self.get_workflow_node_count(api_key, base_url, workflow_id)
-            # Use the actual node count directly
-            self.total_nodes = actual_node_count
-            print(f"Using actual total nodes for progress: {self.total_nodes}")
-        except Exception as e:
-            print(f"Error getting workflow node count, using default value: {e}")
-            self.total_nodes = self.ESTIMATED_TOTAL_NODES
-            print(f"Using default total nodes for progress: {self.total_nodes}")
+        if not api_key or not base_url:
+            raise ValueError("Missing required apiConfig fields: apiKey, base_url")
+
+        # Get workflow node count from API (only for non-AI App tasks)
+        self.total_nodes = self.ESTIMATED_TOTAL_NODES # Default
+        retrieved_workflow_id = apiConfig.get("workflowId_webappId") # <<< Changed key here
+
+        if not is_ai_app_task:
+            # --- Standard ComfyUI Task --- 
+            print("Standard ComfyUI Task mode enabled.")
+            try:
+                # workflow_id = apiConfig.get("workflowId_webappId") # Already retrieved
+                if not retrieved_workflow_id:
+                    print("Warning: workflowId_webappId missing in apiConfig for standard task. Using default node estimate.")
+                    # Fall through to use default estimate
+                else:
+                    # Get actual node count from workflow
+                    actual_node_count = self.get_workflow_node_count(api_key, base_url, retrieved_workflow_id)
+                    # Use the actual node count directly
+                    self.total_nodes = actual_node_count
+                    print(f"Using actual total nodes for progress: {self.total_nodes}")
+            except Exception as e:
+                print(f"Error getting workflow node count, using default value: {e}")
+                # self.total_nodes is already set to default
+                print(f"Using default total nodes for progress: {self.total_nodes}")
+        else:
+            # --- AI App Task --- 
+            print(f"AI App Task mode enabled. Using default estimated nodes for progress: {self.total_nodes}")
+            # Validate that workflowId (acting as webappId) is provided in config
+            if not retrieved_workflow_id:
+                 raise ValueError("workflowId_webappId (acting as webappId) must be provided in apiConfig when is_ai_app_task is True.")
+            # Optional: Add validation if webappId must be numeric, though API might handle string conversion
+            try:
+                # Attempt conversion to int, but keep it as string for the API call if needed
+                int(retrieved_workflow_id)
+                print(f"Using workflowId_webappId from apiConfig as webappId: {retrieved_workflow_id}")
+            except ValueError:
+                 print(f"Warning: workflowId_webappId '{retrieved_workflow_id}' provided for AI App Task is not purely numeric, but proceeding.")
+
 
         # Initialize ComfyUI progress bar
         self.pbar = comfy.utils.ProgressBar(self.total_nodes)
         print("Progress bar initialized at 0")
 
         # --- Concurrency Check ---
-        api_key = None
-        base_url = None
+        # api_key and base_url are already validated
         try:
-            api_key = apiConfig.get("apiKey")
-            base_url = apiConfig.get("base_url")
-            if not api_key or not base_url:
-                 raise ValueError("apiKey and base_url missing from apiConfig")
-
             account_status = self.check_account_status(api_key, base_url)
             current_tasks = int(account_status["currentTaskCounts"])
             print(f"There are {current_tasks} tasks running")
@@ -318,8 +338,19 @@ class ExecuteNode:
         wss_url = None # <<< Initialize wss_url
         try:
             print(f"ExecuteNode NodeInfoList: {nodeInfoList}")
-            # Pass base_url explicitly from the validated config
-            task_creation_result = self.create_task(apiConfig, nodeInfoList or [], base_url)
+
+            # <<< Decide which creation function to call >>>
+            if is_ai_app_task:
+                # Call AI App Task creation, passing the retrieved ID as webappId
+                webappId_to_pass = retrieved_workflow_id # Use the ID from config
+                print(f"Creating AI App task with webappId: {webappId_to_pass}...")
+                task_creation_result = self.create_ai_app_task(apiConfig, nodeInfoList or [], webappId_to_pass)
+            else:
+                # Call standard ComfyUI Task creation
+                print("Creating standard ComfyUI task...")
+                # <<< Add base_url back to the create_task call >>>
+                task_creation_result = self.create_task(apiConfig, nodeInfoList or [], base_url)
+
             print(f"Task Creation Result: {json.dumps(task_creation_result, indent=2, ensure_ascii=False)}")
 
             # Validate task creation response structure before accessing data
@@ -1373,6 +1404,98 @@ class ExecuteNode:
 
         # Should not be reachable if logic is correct
         raise Exception("Task creation failed unexpectedly after retry loop.")
+
+    # <<< Add new function for creating AI App tasks >>>
+    def create_ai_app_task(self, apiConfig, nodeInfoList, webappId):
+        """
+        创建 AI 应用任务 (using /task/openapi/ai-app/run), 包含重试机制.
+        """
+        safe_base_url = apiConfig.get('base_url')
+        safe_api_key = apiConfig.get("apiKey")
+
+        if not safe_base_url or not safe_api_key:
+             raise ValueError("Missing required apiConfig fields: 'base_url', 'apiKey'")
+
+        # <<< Use the AI App endpoint >>>
+        url = f"{safe_base_url}/task/openapi/ai-app/run"
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "ComfyUI-RH-APICall-Node/1.0",
+            # Host header is typically handled by requests library
+        }
+        # <<< Construct payload for AI App task, converting webappId to int >>>
+        try:
+            webappId_int = int(webappId)
+        except ValueError:
+            # Handle error if the ID from config cannot be converted to int
+            raise ValueError(f"Invalid webappId provided: '{webappId}'. It must be convertible to an integer.")
+
+        data = {
+            "webappId": webappId_int,
+            "apiKey": safe_api_key,
+            "nodeInfoList": nodeInfoList,
+        }
+
+        max_retries = 5
+        retry_delay = 1
+        last_exception = None
+
+        for attempt in range(max_retries):
+            response = None
+            current_last_exception = None
+            success = False # Flag to indicate success within try block
+            try:
+                print(f"Create AI App task attempt {attempt + 1}/{max_retries}...")
+                response = requests.post(url, json=data, headers=headers, timeout=30)
+                print(f"Create AI App task attempt {attempt + 1}: Status code {response.status_code}")
+                response.raise_for_status()
+
+                result = response.json()
+
+                # Response structure seems identical to standard task, check code and data fields
+                if result.get("code") == 0:
+                    if "data" in result and "taskId" in result["data"]: # Don't strictly require netWssUrl here
+                         print("AI App Task created/queued successfully.")
+                         success = True # Mark as success
+                         return result # Return successful result
+                    else:
+                         print(f"AI App Task API success code 0, but response structure invalid: {result}")
+                         current_last_exception = ValueError(f"API success code 0, but response structure invalid.")
+                else:
+                    api_msg = result.get('msg', 'Unknown API error')
+                    print(f"API error creating AI App task (code {result.get('code')}): {api_msg}")
+                    current_last_exception = Exception(f"API error (code {result.get('code')}): {api_msg}")
+
+            except requests.exceptions.Timeout as e:
+                 print(f"Create AI App task attempt {attempt + 1} timed out.")
+                 current_last_exception = e
+            except requests.exceptions.RequestException as e:
+                print(f"Create AI App task attempt {attempt + 1} network error: {e}")
+                current_last_exception = e
+            except json.JSONDecodeError as e:
+                 print(f"Create AI App task attempt {attempt + 1} failed to decode JSON response.")
+                 if response is not None: print(f"Raw response text: {response.text}")
+                 current_last_exception = e
+            except Exception as e:
+                 print(f"Create AI App task attempt {attempt + 1} unexpected error: {e}")
+                 current_last_exception = e
+
+            # If successful, we already returned. If not successful, process the error.
+            if not success:
+                 last_exception = current_last_exception # Store the most recent error
+                 if attempt < max_retries - 1:
+                     print(f"Retrying AI App task creation in {retry_delay} seconds...")
+                     time.sleep(retry_delay)
+                     retry_delay *= 2
+                 else: # Max retries reached
+                     error_message = f"Failed to create AI App task after {max_retries} attempts."
+                     if last_exception:
+                          error_message += f" Last error: {last_exception}"
+                     print(error_message)
+                     raise Exception(error_message) from last_exception
+
+        # Should not be reachable if logic is correct
+        raise Exception("AI App Task creation failed unexpectedly after retry loop.")
 
 
     def check_task_status(self, task_id, api_key, base_url):
