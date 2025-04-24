@@ -93,7 +93,7 @@ class ExecuteNode:
                 "nodeInfoList": ("ARRAY", {"default": []}),
                 "run_timeout": ("INT", {"default": 600}),
                 "concurrency_limit": ("INT", {"default": 1, "min": 1}),
-                "is_ai_app_task": ("BOOLEAN", {"default": False}),
+                "is_webapp_task": ("BOOLEAN", {"default": False}),
             },
         }
 
@@ -250,7 +250,7 @@ class ExecuteNode:
         raise Exception(f"Failed to get workflow node count after {max_retries} attempts (unexpected loop end). Last error: {last_exception}")
 
     # --- Main Process Method ---
-    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1, is_ai_app_task=False):
+    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1, is_webapp_task=False):
         # Reset state
         with self.node_lock: # Use lock for resetting shared state
             self.executed_nodes.clear()
@@ -270,7 +270,7 @@ class ExecuteNode:
         self.total_nodes = self.ESTIMATED_TOTAL_NODES # Default
         retrieved_workflow_id = apiConfig.get("workflowId_webappId") # <<< Changed key here
 
-        if not is_ai_app_task:
+        if not is_webapp_task:
             # --- Standard ComfyUI Task --- 
             print("Standard ComfyUI Task mode enabled.")
             try:
@@ -290,17 +290,21 @@ class ExecuteNode:
                 print(f"Using default total nodes for progress: {self.total_nodes}")
         else:
             # --- AI App Task --- 
-            print(f"AI App Task mode enabled. Using default estimated nodes for progress: {self.total_nodes}")
+            # Rename print log message to reflect webapp task
+            print(f"Webapp Task mode enabled. Using default estimated nodes for progress: {self.total_nodes}")
             # Validate that workflowId (acting as webappId) is provided in config
             if not retrieved_workflow_id:
-                 raise ValueError("workflowId_webappId (acting as webappId) must be provided in apiConfig when is_ai_app_task is True.")
+                 # Update ValueError message
+                 raise ValueError("workflowId_webappId (acting as webappId) must be provided in apiConfig when is_webapp_task is True.")
             # Optional: Add validation if webappId must be numeric, though API might handle string conversion
             try:
                 # Attempt conversion to int, but keep it as string for the API call if needed
                 int(retrieved_workflow_id)
+                # Update print log message
                 print(f"Using workflowId_webappId from apiConfig as webappId: {retrieved_workflow_id}")
             except ValueError:
-                 print(f"Warning: workflowId_webappId '{retrieved_workflow_id}' provided for AI App Task is not purely numeric, but proceeding.")
+                 # Update print log message
+                 print(f"Warning: workflowId_webappId '{retrieved_workflow_id}' provided for Webapp Task is not purely numeric, but proceeding.")
 
 
         # Initialize ComfyUI progress bar
@@ -340,10 +344,11 @@ class ExecuteNode:
             print(f"ExecuteNode NodeInfoList: {nodeInfoList}")
 
             # <<< Decide which creation function to call >>>
-            if is_ai_app_task:
+            if is_webapp_task:
                 # Call AI App Task creation, passing the retrieved ID as webappId
                 webappId_to_pass = retrieved_workflow_id # Use the ID from config
-                print(f"Creating AI App task with webappId: {webappId_to_pass}...")
+                # Update print log message
+                print(f"Creating Webapp task with webappId: {webappId_to_pass}...")
                 task_creation_result = self.create_ai_app_task(apiConfig, nodeInfoList or [], webappId_to_pass)
             else:
                 # Call standard ComfyUI Task creation
