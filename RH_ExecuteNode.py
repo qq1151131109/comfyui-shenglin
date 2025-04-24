@@ -134,7 +134,6 @@ class ExecuteNode:
                  # The internal check in complete_progress handles redundancy
                  print("WS: Task execution success signal received.")
                  self.complete_progress()
-                 # No need for sleep or setting task_completed here
 
         except Exception as e:
             print(f"Error processing WebSocket message: {e}")
@@ -316,27 +315,82 @@ class ExecuteNode:
 
         # --- Task Creation & WebSocket ---
         task_id = None
+        wss_url = None # <<< Initialize wss_url
         try:
             print(f"ExecuteNode NodeInfoList: {nodeInfoList}")
             # Pass base_url explicitly from the validated config
-            task_creation_result = self.create_task(apiConfig, nodeInfoList or [], base_url) 
+            task_creation_result = self.create_task(apiConfig, nodeInfoList or [], base_url)
             print(f"Task Creation Result: {json.dumps(task_creation_result, indent=2, ensure_ascii=False)}")
-            
+
             # Validate task creation response structure before accessing data
             if not isinstance(task_creation_result.get("data"), dict):
                  raise ValueError("Invalid task creation response data structure.")
-            
-            self.prompt_tips = task_creation_result["data"].get("promptTips", "{}")
-            task_id = task_creation_result["data"].get("taskId")
-            wss_url = task_creation_result["data"].get("netWssUrl")
-            
-            if not task_id or not wss_url:
-                 raise ValueError("Missing taskId or netWssUrl in task creation response.")
-                 
-            print(f"Task created successfully, taskId: {task_id}")
-            self.connect_websocket(wss_url)
+
+            task_data = task_creation_result["data"]
+            self.prompt_tips = task_data.get("promptTips", "{}")
+            task_id = task_data.get("taskId")
+            initial_status = task_data.get("taskStatus")
+            wss_url = task_data.get("netWssUrl") # <<< Get initial WSS URL
+
+            if not task_id:
+                 raise ValueError("Missing taskId in task creation response.")
+
+            print(f"Task created, taskId: {task_id}, Initial Status: {initial_status}")
+
+            # --- Handle QUEUED state ---
+            if initial_status == "QUEUED" and not wss_url:
+                print("Task is QUEUED. Polling for RUNNING status and WebSocket URL...")
+                queue_start_time = time.time()
+                poll_interval = 2 # seconds
+                while True:
+                    # Check timeout while waiting in queue
+                    if time.time() - queue_start_time > run_timeout:
+                         raise TimeoutError(f"Timeout waiting for task {task_id} to leave QUEUED state.")
+
+                    # Check task status
+                    status_result = self.check_task_status(task_id, api_key, base_url)
+                    current_status = status_result.get("taskStatus")
+                    print(f"  Polling status for queued task {task_id}: {current_status}")
+
+                    if current_status == "RUNNING":
+                        # Task is running, try to get WSS URL from status check
+                        wss_url = status_result.get("netWssUrl")
+                        if wss_url:
+                            print(f"Task {task_id} is RUNNING. WebSocket URL obtained: {wss_url}")
+                            break # Exit queue polling loop
+                        else:
+                            # This case might indicate an API design issue or a transient state
+                            print(f"Warning: Task {task_id} is RUNNING but WebSocket URL not yet available from status check. Retrying check...")
+                            # Keep polling, maybe the URL will appear shortly
+                    elif current_status == "error":
+                         error_msg = status_result.get('error', 'Unknown error during queue polling')
+                         raise Exception(f"Task {task_id} failed while in queue: {error_msg}")
+                    elif isinstance(status_result, list): # Task completed while polling queue status
+                         print(f"Task {task_id} completed while polling queue status. Skipping WebSocket connection.")
+                         # Set wss_url to a non-None dummy value to skip connection attempt later
+                         wss_url = "skipped_completed_in_queue" 
+                         break # Exit queue polling loop
+                    elif current_status != "QUEUED":
+                        # Handle unexpected status if necessary
+                        print(f"Warning: Task {task_id} transitioned to unexpected status '{current_status}' while polling queue.")
+                        # Decide if we should break or continue polling based on the status
+
+                    # Wait before next poll
+                    time.sleep(poll_interval)
+
+            # --- Connect WebSocket if URL is available and not skipped ---
+            if wss_url and wss_url != "skipped_completed_in_queue":
+                print(f"Attempting to connect WebSocket: {wss_url}")
+                self.connect_websocket(wss_url)
+            elif not wss_url:
+                # If still no WSS URL after potential polling (e.g., finished directly, or RUNNING but no URL provided)
+                # Raise error or proceed without WS? Let's raise error for now.
+                raise ValueError(f"Failed to obtain WebSocket URL for task {task_id} after creation/polling.")
+            else: # wss_url == "skipped_completed_in_queue"
+                 print("WebSocket connection skipped as task already completed.")
+
         except Exception as e:
-             print(f"Error creating task or connecting WS: {e}")
+             print(f"Error during task creation, queue polling, or WS connection: {e}")
              if self.pbar: self.pbar.update_absolute(1.0) # Use absolute directly for setup failure
              raise
 
@@ -1378,26 +1432,53 @@ class ExecuteNode:
 
                 # --- If we got here, the request was successful (status 200, valid JSON) --- 
                 # Now interpret the API result
-                if api_code == 0 and isinstance(api_data, list) and api_data: # <<< Correct indent
-                    return api_data # <<< Correct indent - SUCCESS, return output data
+                # 1. Check for successful completion (code 0, list data)
+                if api_code == 0 and isinstance(api_data, list) and api_data:
+                    return api_data # SUCCESS, return output data
 
-                elif api_msg == "APIKEY_TASK_IS_RUNNING": # <<< Correct indent
-                    return {"taskStatus": "RUNNING"} # <<< Correct indent - Task is running
+                # 2. Check for explicit QUEUED message
+                elif api_msg == "APIKEY_TASK_IS_QUEUED":
+                    print(f"Check status ({task_id}): Task QUEUED.")
+                    return {"taskStatus": "QUEUED"}
 
-                elif api_msg == "APIKEY_TASK_IS_QUEUED": # <<< Correct indent
-                    return {"taskStatus": "QUEUED"} # <<< Correct indent - Task is queued
+                # 3. Check for explicit RUNNING message
+                elif api_msg == "APIKEY_TASK_IS_RUNNING":
+                    possible_wss_url = None
+                    if isinstance(api_data, dict): # Check if api_data is a dict
+                        possible_wss_url = api_data.get("netWssUrl")
+                    # No need to check result["data"] separately here, as api_data holds it
 
-                elif api_code != 0: # <<< Correct indent - API reported an error
+                    if possible_wss_url:
+                        print(f"Check status ({task_id}): Task RUNNING, found netWssUrl.")
+                        return {"taskStatus": "RUNNING", "netWssUrl": possible_wss_url}
+                    else:
+                        print(f"Check status ({task_id}): Task RUNNING, but netWssUrl not found in response data.")
+                        return {"taskStatus": "RUNNING"} # Return RUNNING status without URL
+
+                # 4. Check for API-reported errors (non-zero code, excluding specific handled messages)
+                elif api_code != 0:
                     print(f"API Error checking status (code {api_code}): {api_msg}")
-                    return {"taskStatus": "error", "error": api_msg} # <<< Correct indent
+                    return {"taskStatus": "error", "error": api_msg}
 
-                elif api_code == 0 and (api_data is None or (isinstance(api_data, list) and not api_data)): # <<< Correct indent
-                    print("Task status check returned code 0 but no data - assuming still running.")
-                    return {"taskStatus": "RUNNING"} # <<< Correct indent - Assume running
+                # 5. Check for code 0 but no data/output list (likely still running/initializing)
+                elif api_code == 0 and (api_data is None or (isinstance(api_data, list) and not api_data)):
+                    print(f"Check status ({task_id}): Task RUNNING (code 0, no output data yet).")
+                    # Check if WSS url is available even in this state
+                    possible_wss_url = None
+                    if isinstance(api_data, dict):
+                        possible_wss_url = api_data.get("netWssUrl")
 
-                else: # <<< Correct indent - Unknown successful response structure
-                    print(f"Unknown task status response: {result}")
-                    return {"taskStatus": "unknown", "details": result} # <<< Correct indent
+                    if possible_wss_url:
+                         print(f"Check status ({task_id}): Task RUNNING (code 0, no output), found netWssUrl.")
+                         return {"taskStatus": "RUNNING", "netWssUrl": possible_wss_url}
+                    else:
+                         print(f"Check status ({task_id}): Task RUNNING (code 0, no output), netWssUrl not found.")
+                         return {"taskStatus": "RUNNING"}
+
+                # 6. Fallback for unknown successful response structure
+                else:
+                    print(f"Unknown task status response structure: {result}")
+                    return {"taskStatus": "unknown", "details": result}
 
             except requests.exceptions.Timeout as e: # <<< Correct except clause indent
                 print(f"Network timeout on attempt {attempt + 1}/{max_retries} for task {task_id}")
