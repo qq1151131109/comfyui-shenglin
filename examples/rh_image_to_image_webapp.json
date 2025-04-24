@@ -1,0 +1,409 @@
+{
+  "last_node_id": 7,
+  "last_link_id": 7,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "SaveImage",
+      "pos": [
+        2598.51708984375,
+        613.9205932617188
+      ],
+      "size": [
+        315,
+        270
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "label": "images",
+          "type": "IMAGE",
+          "link": 3
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.28",
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 1,
+      "type": "RH_NodeInfoListNode",
+      "pos": [
+        1771.202392578125,
+        696.84130859375
+      ],
+      "size": [
+        343.2673034667969,
+        115.00286865234375
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "previousNodeInfoList",
+          "label": "previousNodeInfoList",
+          "type": "ARRAY",
+          "shape": 7,
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ARRAY",
+          "label": "ARRAY",
+          "type": "ARRAY",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "d26b20496040d4b4dbea590ac3690d587ae103b3",
+        "Node name for S&R": "RH_NodeInfoListNode"
+      },
+      "widgets_values": [
+        55,
+        "text",
+        "皮克斯风格，3D，卡通，精致的面部特征，细腻的皮肤"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "RH_SettingsNode",
+      "pos": [
+        1772.150146484375,
+        515.3632202148438
+      ],
+      "size": [
+        315,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRUCT",
+          "label": "STRUCT",
+          "type": "STRUCT",
+          "shape": 3,
+          "links": [
+            1,
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
+        "Node name for S&R": "RH_SettingsNode"
+      },
+      "widgets_values": [
+        "https://www.runninghub.cn",
+        "ed37fbdd79c34a7ca612aedbe5cea13e",
+        " 1873567075221295105"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "RH_ExecuteNode",
+      "pos": [
+        2181.069580078125,
+        652.3009033203125
+      ],
+      "size": [
+        317.4000244140625,
+        186
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apiConfig",
+          "label": "apiConfig",
+          "type": "STRUCT",
+          "link": 1
+        },
+        {
+          "name": "nodeInfoList",
+          "label": "nodeInfoList",
+          "type": "ARRAY",
+          "shape": 7,
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "label": "images",
+          "type": "IMAGE",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "video_frames",
+          "label": "video_frames",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "latent",
+          "label": "latent",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "text",
+          "label": "text",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "audio",
+          "label": "audio",
+          "type": "AUDIO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "d26b20496040d4b4dbea590ac3690d587ae103b3",
+        "Node name for S&R": "RH_ExecuteNode"
+      },
+      "widgets_values": [
+        600,
+        1,
+        true
+      ]
+    },
+    {
+      "id": 6,
+      "type": "LoadImage",
+      "pos": [
+        1428.1463623046875,
+        530.5256958007812
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "label": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            5
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "label": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.28",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "00002-3919489202.png",
+        "image"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "RH_ImageUploaderNode",
+      "pos": [
+        1521.4920654296875,
+        962.1885986328125
+      ],
+      "size": [
+        229.20001220703125,
+        46
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apiConfig",
+          "label": "apiConfig",
+          "type": "STRUCT",
+          "link": 6
+        },
+        {
+          "name": "image",
+          "label": "image",
+          "type": "IMAGE",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "filename",
+          "label": "filename",
+          "type": "STRING",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "5f18caa0ad47bc741770a1bc9d0a0682b40a0b81",
+        "Node name for S&R": "RH_ImageUploaderNode"
+      }
+    },
+    {
+      "id": 5,
+      "type": "RH_NodeInfoListNode",
+      "pos": [
+        1789.681640625,
+        888.2706298828125
+      ],
+      "size": [
+        330,
+        126
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "previousNodeInfoList",
+          "label": "previousNodeInfoList",
+          "type": "ARRAY",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "fieldValue",
+          "type": "STRING",
+          "widget": {
+            "name": "fieldValue"
+          },
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ARRAY",
+          "label": "ARRAY",
+          "type": "ARRAY",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "5f18caa0ad47bc741770a1bc9d0a0682b40a0b81",
+        "Node name for S&R": "RH_NodeInfoListNode"
+      },
+      "widgets_values": [
+        44,
+        "image",
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "STRUCT"
+    ],
+    [
+      2,
+      1,
+      0,
+      3,
+      1,
+      "ARRAY"
+    ],
+    [
+      3,
+      3,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      5,
+      0,
+      1,
+      0,
+      "ARRAY"
+    ],
+    [
+      5,
+      6,
+      0,
+      7,
+      1,
+      "IMAGE"
+    ],
+    [
+      6,
+      2,
+      0,
+      7,
+      0,
+      "STRUCT"
+    ],
+    [
+      7,
+      7,
+      0,
+      5,
+      1,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.3190278677309182,
+      "offset": [
+        -1316.5066910186686,
+        -381.7421459306837
+      ]
+    },
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
