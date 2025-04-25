@@ -39,22 +39,28 @@ class ExecuteNode:
 
     def update_progress(self):
         """Increments the progress bar by one step and logs, stopping at total_nodes."""
-        # --- Guard Condition ---
-        # Use lock to ensure thread safety when checking/updating steps and flag
         with self.node_lock:
-            if self.task_completed or (self.pbar and self.current_steps >= self.total_nodes):
-                # Print only if trying to update *after* completion for debugging
-                if self.task_completed:
-                    print(f"Skipping progress update because task is already completed.")
+            # Guard 1: Check completion status first
+            if self.task_completed:
+                # Optional: Log if needed, but return silently to avoid spam
+                # print(f"Skipping progress update because task is already completed.")
                 return
 
-            if self.pbar:
-                self.current_steps += 1
-                # Increment the ComfyUI progress bar by 1
-                self.pbar.update(1)
-                # Log the current state
-                display_steps = min(self.current_steps, self.total_nodes) # Ensure log doesn't exceed total
-                print(f"Progress Update: Step {display_steps}/{self.total_nodes} ({(display_steps/self.total_nodes)*100:.1f}%)")
+            # Guard 2: Check if progress bar exists AND if we are already at or beyond the total
+            if not self.pbar or self.current_steps >= self.total_nodes:
+                 # Optional: Log if trying to update when already >= total for debugging
+                 # if self.pbar and self.current_steps >= self.total_nodes:
+                 #     print(f"Debug: update_progress called when steps ({self.current_steps}) >= total ({self.total_nodes}). Skipping update.")
+                 return
+
+            # --- If guards passed, proceed with increment and update --- 
+            self.current_steps += 1
+            # Increment the ComfyUI progress bar by 1
+            self.pbar.update(1)
+            # Log the current state
+            # Use min for logging safety, although current_steps should now never exceed total_nodes here
+            display_steps = min(self.current_steps, self.total_nodes) 
+            print(f"Progress Update: Step {display_steps}/{self.total_nodes} ({(display_steps/self.total_nodes)*100:.1f}%)")
 
 
     def complete_progress(self):
@@ -70,12 +76,15 @@ class ExecuteNode:
             self.task_completed = True
 
             if self.pbar:
-                # Only force update to 100% if update_progress didn't already reach it
+                # Check if task finished before reaching 100% naturally
                 if self.current_steps < self.total_nodes:
-                    print(f"Forcing progress bar to 100% as final step.")
-                    self.current_steps = self.total_nodes # Ensure internal counter matches
-                    self.pbar.update_absolute(1.0)
-                    print(f"Progress Finalized: {self.total_nodes}/{self.total_nodes} (100.0%)")
+                    # Option 1: Update counter but DON'T force bar to 100%
+                    print(f"Task completed early at step {self.current_steps}/{self.total_nodes}. Setting counter to total.")
+                    self.current_steps = self.total_nodes # Ensure internal counter matches total for consistency
+                    # Option 2: (Commented out) Force bar to 100% - REMOVED
+                    # print(f"Forcing progress bar to 100% as final step.")
+                    # self.pbar.update_absolute(1.0)
+                    # print(f"Progress Finalized: {self.total_nodes}/{self.total_nodes} (100.0%)")
                 else:
                     # If current_steps already == total_nodes, update_progress handled the last visual update
                     print(f"Progress already at 100% ({self.current_steps}/{self.total_nodes}). Finalization complete.")
