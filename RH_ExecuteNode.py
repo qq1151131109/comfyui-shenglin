@@ -1333,19 +1333,22 @@ class ExecuteNode:
         创建任务，包含重试机制，最多重试5次
         """
         safe_base_url = apiConfig.get('base_url')
-        safe_workflow_id = apiConfig.get("workflowId")
+        # Use the updated key name here
+        safe_workflow_id = apiConfig.get("workflowId_webappId") 
         safe_api_key = apiConfig.get("apiKey")
 
         if not safe_base_url or not safe_workflow_id or not safe_api_key:
-             raise ValueError("Missing required apiConfig fields: 'base_url', 'workflowId', 'apiKey'")
+             # Update the error message to reflect the new key
+             raise ValueError("Missing required apiConfig fields: 'base_url', 'workflowId_webappId', 'apiKey'")
 
         url = f"{safe_base_url}/task/openapi/create"
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "ComfyUI-RH-APICall-Node/1.0",
         }
+        # Also update the key used in the API payload
         data = {
-            "workflowId": safe_workflow_id,
+            "workflowId": safe_workflow_id, 
             "apiKey": safe_api_key,
             "nodeInfoList": nodeInfoList,
         }
