@@ -75,19 +75,15 @@ class ExecuteNode:
             # --- Set completion flag FIRST ---
             self.task_completed = True
 
+            # --- Update progress bar to final state --- 
             if self.pbar:
-                # Check if task finished before reaching 100% naturally
-                if self.current_steps < self.total_nodes:
-                    # Option 1: Update counter but DON'T force bar to 100%
-                    print(f"Task completed early at step {self.current_steps}/{self.total_nodes}. Setting counter to total.")
-                    self.current_steps = self.total_nodes # Ensure internal counter matches total for consistency
-                    # Option 2: (Commented out) Force bar to 100% - REMOVED
-                    # print(f"Forcing progress bar to 100% as final step.")
-                    # self.pbar.update_absolute(1.0)
-                    # print(f"Progress Finalized: {self.total_nodes}/{self.total_nodes} (100.0%)")
-                else:
-                    # If current_steps already == total_nodes, update_progress handled the last visual update
-                    print(f"Progress already at 100% ({self.current_steps}/{self.total_nodes}). Finalization complete.")
+                # Ensure the bar visually reaches 100% regardless of intermediate steps received
+                print(f"Forcing progress bar to 100% ({self.total_nodes}/{self.total_nodes}). Current steps internally were {self.current_steps}.")
+                # Use update_absolute to set the final value and total explicitly.
+                # This handles cases where it finished early or exactly on time.
+                self.pbar.update_absolute(self.total_nodes, self.total_nodes)
+                # Also update internal counter for consistency, although it might be redundant now
+                self.current_steps = self.total_nodes
             else:
                  print("Progress bar not available during finalization.")
 
@@ -117,39 +113,92 @@ class ExecuteNode:
     def on_ws_message(self, ws, message):
         """处理 WebSocket 消息，更新内部状态和进度条"""
         try:
-            # --- Check completion status AT THE START ---
-            # This check is implicitly thread-safe due to complete_progress lock
-            if self.task_completed:
+            # Check completion status AT THE START
+            with self.node_lock:
+                is_completed = self.task_completed
+            if is_completed:
                  # print("WS Message received after task completion, ignoring.") # Optional: reduce log spam
                  return
 
-            data = json.loads(message)
+            # --- Log the raw message for debugging ---
+            print(f"--- Raw WS Message Received ---")
+            try:
+                # Attempt pretty print first
+                data = json.loads(message)
+                print(json.dumps(data, indent=2, ensure_ascii=False))
+            except json.JSONDecodeError:
+                # If not valid JSON, print the raw string
+                print(message)
+                # Re-raise or handle appropriately? Let's parse again for the logic below
+                # but acknowledge the format issue.
+                print("Warning: Received non-JSON WS message.")
+                # We still need 'data' for the logic below, parse again (might fail again)
+                # but acknowledge the format issue.
+                print("Warning: Received non-JSON WS message.")
+                # We still need 'data' for the logic below, parse again (might fail again)
+                # Or perhaps better to return if not valid JSON?
+                # For now, let's proceed assuming the first parse failed but the second might work
+                # if the issue was temporary or specific to logging.
+                # A more robust approach might return here or handle specific non-JSON messages.
+                try:
+                    data = json.loads(message)
+                except json.JSONDecodeError as e:
+                    print(f"Error: Could not parse WS message as JSON: {e}")
+                    return # Stop processing this message if definitely not JSON
+            print(f"-----------------------------")
+            # --- End Log raw message ---
+
+            # data = json.loads(message) # Already parsed above
             message_type = data.get("type")
+            node_data = data.get("data", {})
+            node_id = node_data.get("node")
 
-            if message_type == "executing":
-                node_data = data.get("data", {})
-                node_id = node_data.get("node")
+            # Handle node execution updates (both 'executing' and 'execution_success')
+            # Based on user feedback, 'execution_success' might signal single node completion.
+            if message_type == "executing" or message_type == "execution_success":
                 if node_id is not None:
-                    # Lock is handled within update_progress now
                     # Check if it's a new node before calling update
-                    if node_id not in self.executed_nodes:
-                         self.executed_nodes.add(node_id) # Add before update call
-                         self.update_progress() # This method is now guarded internally
-                         print(f"WS: Node {node_id} executed.")
-                else:
-                    # Null node signal check remains guarded by the top-level check
-                    print("WS: Received null node signal, waiting for final success signal...")
+                    # Use lock to safely check and add to executed_nodes
+                    with self.node_lock:
+                         is_new_node = node_id not in self.executed_nodes
+                         if is_new_node:
+                             self.executed_nodes.add(node_id)
+                    
+                    if is_new_node:
+                         self.update_progress() # This method is guarded internally
+                         print(f"WS ({message_type}): Node {node_id} reported.")
+                    else:
+                         print(f"WS ({message_type}): Node {node_id} reported again (ignored for progress).")
+                elif message_type == "executing" and node_id is None: # Null node signal
+                    print("WS (executing): Received null node signal, potentially end of execution phase.")
+                elif message_type == "execution_success" and node_id is None:
+                    # If execution_success doesn't have a node_id, what does it mean?
+                    # Log it for now, DO NOT call complete_progress.
+                    print(f"WS (execution_success): Received signal without node_id. Data: {node_data}")
+                    # self.complete_progress() # <<< REMOVED - This was incorrect based on user feedback
 
-            elif message_type == "execution_success":
-                 # The internal check in complete_progress handles redundancy
-                 print("WS: Task execution success signal received.")
-                 self.complete_progress()
+            # Handle other message types if necessary (e.g., specific overall error messages)
+            # elif message_type == "execution_error": # Hypothetical example
+            #     error_details = node_data.get("error", "Unknown WS error")
+            #     print(f"WS: Received execution error: {error_details}")
+            #     with self.node_lock:
+            #         if not self.task_completed:
+            #             if self.ws_error is None:
+            #                 self.ws_error = Exception(f"WS Error: {error_details}")
+            #             self.task_completed = True
+            
+            else:
+                 print(f"WS: Received unhandled message type '{message_type}': {data}")
 
         except Exception as e:
             print(f"Error processing WebSocket message: {e}")
-            self.ws_error = e
-            # Call complete_progress which handles the task_completed flag and lock
-            self.complete_progress()
+            # Set error state; rely on polling or finally block for full completion logic
+            with self.node_lock:
+                if not self.task_completed:
+                    if self.ws_error is None:
+                        self.ws_error = e
+                    # Don't necessarily mark completed here, let polling confirm final state
+                    # self.task_completed = True 
 
     def on_ws_error(self, ws, error):
         """处理 WebSocket 错误"""
@@ -441,7 +490,9 @@ class ExecuteNode:
 
         # --- Task Monitoring Loop ---
         task_start_time = time.time()
-        loop_sleep_interval = 0.1
+        loop_sleep_interval = 0.1 # Short sleep for responsiveness
+        poll_status_interval = 5 # Poll HTTP status every 5 seconds
+        last_poll_time = time.time() # Track last poll time
         print("Starting task monitoring loop...")
 
         timeout_timer = None
@@ -457,7 +508,9 @@ class ExecuteNode:
                     print("Global timeout reached - forcing task completion.")
                     # Use lock to set error safely
                     with self.node_lock:
-                        self.ws_error = Exception("Global timeout reached")
+                        # Check if ws_error is already set to avoid overwriting a more specific WS error
+                        if self.ws_error is None:
+                             self.ws_error = Exception("Global timeout reached")
                         # Just set the flags here to break loop
                         self.task_completed = True # Set flag directly here to break loop
 
@@ -466,25 +519,72 @@ class ExecuteNode:
             timeout_timer.start()
 
             # Main wait loop
-            while True: # <<< Added loop structure
-                # Check completion flags (read safely with lock)
+            while True: # <<< Modified loop structure
+                # 1. Check completion flags (set by WS handlers or polling)
                 with self.node_lock:
                      is_completed = self.task_completed
                      current_error = self.ws_error
                 if is_completed or current_error:
-                     break # Exit loop if completed or error occurred
+                     print(f"Loop Exit: Task Completed={is_completed}, Error Present={current_error is not None}")
+                     break # Exit loop if completed or error occurred via WS or polling
 
-                # Check for timeout explicitly in loop as backup/alternative to timer
+                # 2. Check for global timeout explicitly
                 if time.time() - task_start_time > run_timeout:
                      print("Task monitoring loop timeout check triggered.")
-                     # Set flags to exit loop; rely on finally block for completion
                      with self.node_lock:
-                         if not self.task_completed: # Avoid overwriting WS error
-                             self.ws_error = self.ws_error or Exception(f"Timeout: Task {task_id} did not complete within {run_timeout} seconds.")
-                         self.task_completed = True # Ensure loop exit
+                         if not self.task_completed: # Avoid overwriting specific error
+                            if self.ws_error is None:
+                                self.ws_error = Exception(f"Timeout: Task {task_id} did not complete within {run_timeout} seconds.")
+                            self.task_completed = True # Ensure loop exit
                      break # Exit loop
 
-                time.sleep(loop_sleep_interval) # Yield CPU
+                # 3. Periodic HTTP Status Polling (Robustness check)
+                current_time = time.time()
+                if current_time - last_poll_time >= poll_status_interval:
+                    print(f"Polling HTTP status for task {task_id}...")
+                    last_poll_time = current_time # Update last poll time
+                    try:
+                        # Call check_task_status (requires api_key, base_url)
+                        status_result = self.check_task_status(task_id, api_key, base_url)
+
+                        # Analyze polling result
+                        if isinstance(status_result, list): # Task completed successfully
+                             print(f"Polling detected task {task_id} completed successfully.")
+                             # Use lock to set flags safely
+                             with self.node_lock:
+                                 if not self.task_completed: # Avoid redundant completion if WS already handled it
+                                     self.task_completed = True
+                                     # No need to set ws_error if successful
+                             # Loop will break on next iteration due to task_completed flag
+                        elif isinstance(status_result, dict):
+                            polled_status = status_result.get("taskStatus")
+                            if polled_status == "error":
+                                error_msg = status_result.get('error', 'Unknown error reported by polling')
+                                print(f"Polling detected task {task_id} failed: {error_msg}")
+                                # Use lock to set flags safely
+                                with self.node_lock:
+                                     if not self.task_completed: # Check completion first
+                                         # Set error only if no other error is already present
+                                         if self.ws_error is None:
+                                             self.ws_error = Exception(f"Task failed (polled): {error_msg}")
+                                         self.task_completed = True # Mark as complete to exit loop
+                                # Loop will break on next iteration
+                            elif polled_status in ["RUNNING", "QUEUED"]:
+                                print(f"Polling: Task {task_id} is still {polled_status}.")
+                                # Optionally check for netWssUrl again if needed, but primary goal is status check
+                            else:
+                                print(f"Polling: Received unexpected status '{polled_status}' for task {task_id}.")
+                        else:
+                             print(f"Polling: Received unexpected result type for task {task_id}: {type(status_result)}")
+
+                    except Exception as poll_e:
+                        # Don't necessarily stop the whole process on a single polling error,
+                        # maybe it's transient. Log it. WS might still be active.
+                        print(f"Warning: Error during periodic status polling for task {task_id}: {poll_e}")
+                        # Consider adding a counter to stop polling after too many errors?
+
+                # 4. Yield CPU
+                time.sleep(loop_sleep_interval)
 
             # Handle exit conditions after loop
             with self.node_lock: # Read error flag safely
@@ -492,17 +592,14 @@ class ExecuteNode:
 
             if final_error:
                 print(f"Task ended with error: {final_error}")
-                # Only complete progress if not already completed by WS handler
-                # (complete_progress handles internal check)
-                self.complete_progress() # Call safe completion method
-                # Error will be raised outside the finally block if needed
-            else: # Task completed normally
+                # complete_progress handles internal checks and ensures final state
+                self.complete_progress()
+            else: # Task completed normally (either via WS or polling success)
                 print("Task monitoring completed successfully.")
-                # complete_progress should have been called by WS handler or the loop exit condition
-                # Ensure completion even if WS didn't send success (e.g., timeout)
+                # Ensure completion is marked, even if WS didn't send success or polling found success
                 self.complete_progress()
 
-        finally: # <<< Added finally clause
+        finally: # <<< Existing finally clause remains
             # Cleanup
             if timeout_timer:
                 timeout_timer.cancel()
@@ -514,7 +611,6 @@ class ExecuteNode:
                 self.ws = None
 
             # Final safety net: Ensure progress is marked complete.
-            # complete_progress has internal checks, so calling it again is safe.
             self.complete_progress()
 
         # If an error occurred during the loop, raise it now after cleanup
