@@ -100,8 +100,8 @@ class ExecuteNode:
             },
             "optional": {
                 "nodeInfoList": ("ARRAY", {"default": []}),
-                "run_timeout": ("INT", {"default": 600}),
-                "concurrency_limit": ("INT", {"default": 1, "min": 1}),
+                "run_timeout": ("INT", {"default": 600, "min": 1, "max": 9999999}), # Corrected comma and added closing brace
+                "concurrency_limit": ("INT", {"default": 1, "min": 1, "max": 100}), # Restored min/max
                 "is_webapp_task": ("BOOLEAN", {"default": False}),
             },
         }
