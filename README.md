@@ -10,7 +10,7 @@
     *   **新增**: 支持 images、video frames、Latent、Text、Audio 文件输出。
 
 *   **实时进度与监控**:
-    *   增加了 ComfyUI **进度条** 显示，并提供任务状态反馈,更完善的LOG输出
+    *   增加了 ComfyUI **进度条** 显示，并提供任务状态反馈,更完善的控制台log输出
 *   **增强的可靠性、并发控制**:
 # ComfyUI 插件：调用和执行 RunningHub 工作流
 
