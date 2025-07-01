@@ -7,120 +7,120 @@ import time  # Add this import
 
 class ImageUploaderNode:
     """
-    ComfyUI 节点：ImageUploaderNode
-    功能：将输入的图像上传到服务器，并返回服务器返回的文件名。
+    ComfyUI Node: ImageUploaderNode
+    Function: Upload input images to server and return the server-returned filename.
     """
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "apiConfig": ("STRUCT",),  # API 配置参数，必须包含 apiKey 和 base_url
-                "image": ("IMAGE",),  # 输入图像张量
+                "apiConfig": ("STRUCT",),  # API configuration parameters, must contain apiKey and base_url
+                "image": ("IMAGE",),  # Input image tensor
             },
         }
 
-    RETURN_TYPES = ("STRING",)  # 输出类型为字符串
-    RETURN_NAMES = ("filename",)  # 输出名称为 filename
-    CATEGORY = "RunningHub"  # 节点类别
-    FUNCTION = "process"  # 指定处理方法
+    RETURN_TYPES = ("STRING",)  # Output type is string
+    RETURN_NAMES = ("filename",)  # Output name is filename
+    CATEGORY = "RunningHub"  # Node category
+    FUNCTION = "process"  # Specify processing method
 
     def process(self, image: torch.Tensor, apiConfig: dict) -> tuple:
         """
-        处理方法：将图像上传到服务器并返回文件名。
+        Processing method: Upload image to server and return filename.
 
-        参数：
-            image (torch.Tensor): 输入的图像张量，形状可能为 [C, H, W]、[H, W, C] 或其他。
-            apiConfig (dict): API 配置参数，必须包含 'apiKey' 和 'base_url'。
+        Parameters:
+            image (torch.Tensor): Input image tensor, shape could be [C, H, W], [H, W, C] or others.
+            apiConfig (dict): API configuration parameters, must contain 'apiKey' and 'base_url'.
 
-        返回：
-            tuple: 包含上传后返回的文件名。
+        Returns:
+            tuple: Contains the filename returned after upload.
         """
-        # 检查输入的图像类型
+        # Check input image type
         if not isinstance(image, torch.Tensor):
             raise TypeError(f"Expected image to be a torch.Tensor, but got {type(image)}.")
     
-        # 将图像张量转换为 NumPy 数组
+        # Convert image tensor to NumPy array
         image_np = image.detach().cpu().numpy()
 
-        # 打印图像形状以进行调试
+        # Print image shape for debugging
         print(f"Original image shape: {image_np.shape}")
 
-        # 处理图像的形状，确保为 [H, W, C]
+        # Process image shape to ensure it's [H, W, C]
         if image_np.ndim == 4:
-            # 处理批量维度，例如 [B, C, H, W]
+            # Handle batch dimension, e.g., [B, C, H, W]
             print("Detected 4D tensor. Assuming shape [B, C, H, W]. Taking the first image in the batch.")
             image_np = image_np[0]
             print(f"Image shape after removing batch dimension: {image_np.shape}")
 
         if image_np.ndim == 3:
             if image_np.shape[0] in [1, 3, 4]:  # [C, H, W]
-                image_np = np.transpose(image_np, (1, 2, 0))  # 转换为 [H, W, C]
+                image_np = np.transpose(image_np, (1, 2, 0))  # Convert to [H, W, C]
                 print(f"Transposed image shape to [H, W, C]: {image_np.shape}")
             elif image_np.shape[2] in [1, 3, 4]:  # [H, W, C]
-                # 已经是 [H, W, C]，无需转置
+                # Already in [H, W, C] format, no need to transpose
                 print(f"Image already in [H, W, C] format: {image_np.shape}")
             else:
                 raise ValueError(f"Unsupported number of channels: {image_np.shape[2]}")
         elif image_np.ndim == 2:
-            # 灰度图像 [H, W]
-            image_np = np.expand_dims(image_np, axis=-1)  # 转换为 [H, W, 1]
+            # Grayscale image [H, W]
+            image_np = np.expand_dims(image_np, axis=-1)  # Convert to [H, W, 1]
             print(f"Expanded grayscale image to [H, W, 1]: {image_np.shape}")
         else:
             raise ValueError(f"Unsupported image shape: {image_np.shape}")
 
-        # 确定图像模式
+        # Determine image mode
         if image_np.shape[2] == 1:
-            mode = "L"  # 灰度图像
+            mode = "L"  # Grayscale image
             image_pil = Image.fromarray((image_np.squeeze(-1) * 255).astype(np.uint8), mode)
             print("Converted to PIL Image with mode 'L'")
         elif image_np.shape[2] == 3:
-            mode = "RGB"  # RGB 图像
+            mode = "RGB"  # RGB image
             image_pil = Image.fromarray((image_np * 255).astype(np.uint8), mode)
             print("Converted to PIL Image with mode 'RGB'")
         elif image_np.shape[2] == 4:
-            mode = "RGBA"  # RGBA 图像
+            mode = "RGBA"  # RGBA image
             image_pil = Image.fromarray((image_np * 255).astype(np.uint8), mode)
             print("Converted to PIL Image with mode 'RGBA'")
         else:
             raise ValueError(f"Unsupported number of channels: {image_np.shape[2]}")
 
-        # 将 PIL 图像保存到 BytesIO 缓冲区
+        # Save PIL image to BytesIO buffer
         buffer = BytesIO()
-        image_pil.save(buffer, format='PNG')  # 可以根据需要选择 'JPEG' 或其他格式
-        # 先获取缓冲区大小
+        image_pil.save(buffer, format='PNG')  # Can choose 'JPEG' or other formats as needed
+        # First get buffer size
         buffer_size = buffer.tell()
-        # 然后重置指针到开头
+        # Then reset pointer to beginning
         buffer.seek(0)
         print("Saved PIL Image to BytesIO buffer.")
 
-        # 打印图像大小，以 MB 为单位
+        # Print image size in MB
         buffer_size_mb = buffer_size / (1024 * 1024)
         print(f"Image size: {buffer_size_mb:.2f} MB")
 
-        # 检查图像大小是否超过 10MB
+        # Check if image size exceeds 10MB
         max_size_bytes = 10 * 1024 * 1024  # 10MB
         if buffer_size > max_size_bytes:
             raise Exception(f"Image size {buffer_size_mb:.2f}MB exceeds the 10MB limit.")
 
-        # 准备 multipart/form-data
+        # Prepare multipart/form-data
         files = {
-            'file': ('image.png', buffer, 'image/png')  # 文件名和内容类型
+            'file': ('image.png', buffer, 'image/png')  # Filename and content type
         }
         data = {
             'apiKey': apiConfig.get('apiKey'),
             'fileType': 'image',
         }
 
-        # 获取 base_url，默认为 'https://www.runninghub.cn'
+        # Get base_url, default to 'https://www.runninghub.cn'
         base_url = apiConfig.get('base_url', 'https://www.runninghub.cn')
         upload_url = f"{base_url}/task/openapi/upload"
 
         print(f"Uploading image to {upload_url} with apiKey: {data['apiKey']}")
 
-        # 发送 POST 请求，添加重试机制
+        # Send POST request with retry mechanism
         max_retries = 5
-        retry_delay = 1  # 初始延迟1秒
+        retry_delay = 1  # Initial delay 1 second
         
         for attempt in range(max_retries):
             try:
@@ -128,32 +128,32 @@ class ImageUploaderNode:
                 print(f"Attempt {attempt + 1}: Received response with status code: {response.status_code}")
                 
                 if response.status_code == 200:
-                    break  # 成功则跳出重试循环
+                    break  # Success, break out of retry loop
                     
             except requests.exceptions.RequestException as e:
-                if attempt == max_retries - 1:  # 最后一次尝试
+                if attempt == max_retries - 1:  # Last attempt
                     raise Exception(f"Failed to connect to the server after {max_retries} attempts: {e}")
                 print(f"Attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
-                retry_delay *= 2  # 指数退避，每次失败后延迟时间翻倍
+                retry_delay *= 2  # Exponential backoff, double delay after each failure
                 continue
 
-        # 如果所有重试都失败了
+        # If all retries failed
         if response.status_code != 200:
             raise Exception(f"Upload failed with status code {response.status_code} after {max_retries} attempts.")
 
-        # 解析 JSON 响应
+        # Parse JSON response
         try:
             response_json = response.json()
             print(f"Response JSON: {response_json}")
         except ValueError:
             raise Exception("Failed to parse JSON response from the server.")
 
-        # 检查 API 返回的 code
+        # Check API returned code
         if response_json.get('code') != 0:
             raise Exception(f"Upload failed: {response_json.get('msg')}")
 
-        # 提取 filename
+        # Extract filename
         data_field = response_json.get('data', {})
         filename = data_field.get('fileName')
 

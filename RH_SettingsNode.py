@@ -1,6 +1,6 @@
 class SettingsNode:
     def __init__(self):
-        # 初始化节点的任何必要参数
+        # Initialize any necessary parameters for the node
         pass
 
     @classmethod
@@ -15,11 +15,11 @@ class SettingsNode:
 
     RETURN_TYPES = ("STRUCT",)
     CATEGORY = "RunningHub"
-    FUNCTION = "process"  # 添加 FUNCTION 属性并指向 process 方法
+    FUNCTION = "process"  # Add FUNCTION attribute pointing to process method
 
     def process(self,base_url,apiKey, workflowId_webappId):
         """
-        该节点接收 apiKey 和 workflowId，返回结构化数据供后续节点使用
+        This node receives apiKey and workflowId, returns structured data for use by subsequent nodes
         """
-        # 返回一个结构体，包含 apiKey 和 workflowId
+        # Return a structure containing apiKey and workflowId
         return [{"base_url": base_url, "apiKey": apiKey, "workflowId_webappId": workflowId_webappId}]

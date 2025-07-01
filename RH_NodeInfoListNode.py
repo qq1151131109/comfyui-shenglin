@@ -1,6 +1,6 @@
 class NodeInfoListNode:
     def __init__(self):
-        # 初始化一个空的 node_info_list，用于存储所有的 nodeInfo
+        # Initialize an empty node_info_list to store all nodeInfo
         self.node_info_list = []
 
     @classmethod
@@ -12,35 +12,35 @@ class NodeInfoListNode:
                 "fieldValue": ("STRING", {"default": ""}),
             },
             "optional": {
-                "previousNodeInfoList": ("ARRAY", {"default": []}),  # 使其为可选，默认值为空列表
+                "previousNodeInfoList": ("ARRAY", {"default": []}),  # Make it optional with default empty list
             }
         }
 
-    RETURN_TYPES = ("ARRAY",)  # 输出类型改为 ARRAY
+    RETURN_TYPES = ("ARRAY",)  # Change output type to ARRAY
     CATEGORY = "RunningHub"
     FUNCTION = "process"
 
-    def process(self, nodeId, fieldName, fieldValue, previousNodeInfoList=[]):
+    def process(self, nodeId, fieldName, fieldValue, previousNodeInfoList=None):
         """
-        该节点允许用户配置多个 nodeId、fieldName 和 fieldValue 参数，
-        并将多个 nodeInfoList 输出为数组。支持串联，多个节点将合并成一个数组。
+        This node allows users to configure multiple nodeId, fieldName, and fieldValue parameters,
+        and output multiple nodeInfoList as arrays. Supports chaining, multiple nodes will be merged into one array.
         """
         self.node_info_list = []
-        # 输出调试信息，查看 previousNodeInfoList
+        # Output debug information to view previousNodeInfoList
         print(f"Processing nodeId: {nodeId}, fieldName: {fieldName}, fieldValue: {fieldValue}")
         print(f"previousNodeInfoList: {previousNodeInfoList}")
-        # 当前的 node_info
+        # Current node_info
         node_info = {"nodeId": nodeId, "fieldName": fieldName, "fieldValue": fieldValue}
 
-        # 如果前一个节点有输出（previousNodeInfoList），则将其添加到当前 node_info_list 中
+        # If the previous node has output (previousNodeInfoList), add it to the current node_info_list
         if previousNodeInfoList:
-            self.node_info_list.extend(previousNodeInfoList)  # 将前一个节点的输出合并进来
+            self.node_info_list.extend(previousNodeInfoList)  # Merge the output from the previous node
 
-        # 将当前的 node_info 加入 node_info_list 中
+        # Add the current node_info to node_info_list
         self.node_info_list.append(node_info)
 
-        # 输出调试信息，查看当前的 node_info_list
+        # Output debug information to view the current node_info_list
         print(f"Updated node_info_list: {self.node_info_list}")
 
-        # 返回整个 node_info_list 数组，包含当前节点和之前节点的输出
+        # Return the entire node_info_list array, containing current node and previous nodes' output
         return [self.node_info_list]

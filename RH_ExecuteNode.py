@@ -6,7 +6,7 @@ from io import BytesIO
 import numpy as np
 import torch
 import os
-import websocket  # 需要安装 websocket-client 包
+import websocket  # Requires websocket-client package
 import threading
 import comfy.utils # Import comfy utils for ProgressBar
 import cv2 # <<< Added import for OpenCV
@@ -111,7 +111,7 @@ class ExecuteNode:
 
     # --- WebSocket Handlers ---
     def on_ws_message(self, ws, message):
-        """处理 WebSocket 消息，更新内部状态和进度条"""
+        """Handle WebSocket messages and update internal state and progress bar"""
         try:
             # Check completion status AT THE START
             with self.node_lock:
@@ -120,35 +120,64 @@ class ExecuteNode:
                  # print("WS Message received after task completion, ignoring.") # Optional: reduce log spam
                  return
 
-            # --- Log the raw message for debugging ---
+            # --- Safely handle message decoding and JSON parsing ---
             print(f"--- Raw WS Message Received ---")
-            try:
-                # Attempt pretty print first
-                data = json.loads(message)
-                print(json.dumps(data, indent=2, ensure_ascii=False))
-            except json.JSONDecodeError:
-                # If not valid JSON, print the raw string
-                print(message)
-                # Re-raise or handle appropriately? Let's parse again for the logic below
-                # but acknowledge the format issue.
-                print("Warning: Received non-JSON WS message.")
-                # We still need 'data' for the logic below, parse again (might fail again)
-                # but acknowledge the format issue.
-                print("Warning: Received non-JSON WS message.")
-                # We still need 'data' for the logic below, parse again (might fail again)
-                # Or perhaps better to return if not valid JSON?
-                # For now, let's proceed assuming the first parse failed but the second might work
-                # if the issue was temporary or specific to logging.
-                # A more robust approach might return here or handle specific non-JSON messages.
-                try:
-                    data = json.loads(message)
-                except json.JSONDecodeError as e:
-                    print(f"Error: Could not parse WS message as JSON: {e}")
-                    return # Stop processing this message if definitely not JSON
-            print(f"-----------------------------")
-            # --- End Log raw message ---
+            
+            # Handle different message types (string, bytes, etc.)
+            processed_message = None
+            if isinstance(message, bytes):
+                # Try different encodings for bytes
+                for encoding in ['utf-8', 'utf-16', 'latin-1']:
+                    try:
+                        processed_message = message.decode(encoding)
+                        print(f"Successfully decoded bytes message using {encoding}")
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                
+                if processed_message is None:
+                    print(f"Warning: Could not decode bytes message with any common encoding. Raw bytes length: {len(message)}")
+                    print(f"First 50 bytes (hex): {message[:50].hex() if len(message) >= 50 else message.hex()}")
+                    return # Skip this message
+            elif isinstance(message, str):
+                processed_message = message
+            else:
+                print(f"Warning: Received unknown message type: {type(message)}")
+                return
 
-            # data = json.loads(message) # Already parsed above
+            # Try to parse as JSON
+            data = None
+            try:
+                data = json.loads(processed_message)
+                print(json.dumps(data, indent=2, ensure_ascii=False))
+            except json.JSONDecodeError as e:
+                print(f"Warning: Could not parse message as JSON: {e}")
+                print(f"Raw message content (first 200 chars): {processed_message[:200]}")
+                print(f"Message length: {len(processed_message)}")
+                
+                # Try to extract any JSON-like content if it's mixed with other data
+                try:
+                    # Look for JSON-like patterns in the message
+                    import re
+                    json_match = re.search(r'\{.*\}', processed_message, re.DOTALL)
+                    if json_match:
+                        potential_json = json_match.group(0)
+                        data = json.loads(potential_json)
+                        print("Successfully extracted JSON from mixed content")
+                        print(json.dumps(data, indent=2, ensure_ascii=False))
+                    else:
+                        print("No JSON pattern found in message, skipping...")
+                        return
+                except Exception as extract_e:
+                    print(f"Failed to extract JSON from message: {extract_e}")
+                    return
+                    
+            print(f"-----------------------------")
+            # --- End safe message processing ---
+
+            if data is None:
+                print("No valid data extracted from WebSocket message")
+                return
             message_type = data.get("type")
             node_data = data.get("data", {})
             node_id = node_data.get("node")
@@ -190,25 +219,42 @@ class ExecuteNode:
             else:
                  print(f"WS: Received unhandled message type '{message_type}': {data}")
 
+        except UnicodeDecodeError as e:
+            print(f"Error: WebSocket message encoding issue: {e}")
+            print("This is likely a non-critical WebSocket protocol issue. Continuing task...")
+            # Don't set error state for encoding issues - these are usually non-critical
+            # and the task can continue via HTTP polling
+            
+        except json.JSONDecodeError as e:
+            print(f"Error: WebSocket message JSON parsing issue: {e}")
+            print("This is likely a non-critical WebSocket protocol issue. Continuing task...")
+            # Don't set error state for JSON parsing issues - these are usually non-critical
+            
         except Exception as e:
             print(f"Error processing WebSocket message: {e}")
-            # Set error state; rely on polling or finally block for full completion logic
-            with self.node_lock:
-                if not self.task_completed:
-                    if self.ws_error is None:
-                        self.ws_error = e
-                    # Don't necessarily mark completed here, let polling confirm final state
-                    # self.task_completed = True 
+            print(f"Exception type: {type(e).__name__}")
+            
+            # Only set error state for critical exceptions
+            if isinstance(e, (ConnectionError, OSError, IOError)):
+                print("Critical WebSocket error detected, marking as error state")
+                with self.node_lock:
+                    if not self.task_completed:
+                        if self.ws_error is None:
+                            self.ws_error = e
+                        # Don't necessarily mark completed here, let polling confirm final state
+                        # self.task_completed = True
+            else:
+                print("Non-critical WebSocket error, continuing task via HTTP polling...") 
 
     def on_ws_error(self, ws, error):
-        """处理 WebSocket 错误"""
+        """Handle WebSocket errors"""
         print(f"WebSocket error: {error}")
         self.ws_error = error
         # Mark task as complete via the centralized method
         self.complete_progress()
 
     def on_ws_close(self, ws, close_status_code, close_msg):
-        """处理 WebSocket 关闭"""
+        """Handle WebSocket close"""
         print(f"WebSocket closed: {close_status_code} - {close_msg}")
         # If closed unexpectedly, mark as complete to end loop
         # Use lock temporarily just to read task_completed safely
@@ -221,12 +267,12 @@ class ExecuteNode:
              self.complete_progress()
 
     def on_ws_open(self, ws):
-        """处理 WebSocket 连接打开"""
+        """Handle WebSocket connection open"""
         print("WebSocket connection established")
         # Note: executed_nodes should be cleared at the start of 'process'
 
     def connect_websocket(self, wss_url):
-        """建立 WebSocket 连接"""
+        """Establish WebSocket connection"""
         print(f"Connecting to WebSocket: {wss_url}")
         websocket.enableTrace(False) # Keep this false unless debugging WS protocol
         self.ws = websocket.WebSocketApp(
@@ -569,6 +615,16 @@ class ExecuteNode:
                                              self.ws_error = Exception(f"Task failed (polled): {error_msg}")
                                          self.task_completed = True # Mark as complete to exit loop
                                 # Loop will break on next iteration
+                            elif polled_status == "completed_no_output":
+                                print(f"Polling detected task {task_id} completed with no output. Setting completion flag.")
+                                # Use lock to set flags safely
+                                with self.node_lock:
+                                     if not self.task_completed: # Check completion first
+                                         # Set specific error for no output case
+                                         if self.ws_error is None:
+                                             self.ws_error = Exception("Task completed successfully but the workflow produced no output results. Possible reasons: 1) Workflow is configured to execute but has no output nodes; 2) Output nodes are disabled; 3) Workflow logic resulted in no final output")
+                                         self.task_completed = True # Mark as complete to exit loop
+                                # Loop will break on next iteration
                             elif polled_status in ["RUNNING", "QUEUED"]:
                                 print(f"Polling: Task {task_id} is still {polled_status}.")
                                 # Optionally check for netWssUrl again if needed, but primary goal is status check
@@ -632,6 +688,10 @@ class ExecuteNode:
         latent_data = None
         text_data = None
         audio_data = None # <<< For audio data
+        
+        # Track consecutive empty results to detect completed tasks with no output
+        consecutive_empty_results = 0
+        max_consecutive_empty = 3  # If we get 3 consecutive empty results, assume task completed with no output
 
         for attempt in range(max_retries):
             task_status_result = None
@@ -639,7 +699,23 @@ class ExecuteNode:
                 task_status_result = self.check_task_status(task_id, api_key, base_url)
                 print(f"Check output attempt {attempt + 1}/{max_retries}")
 
+                # Handle completed task with no output - immediate exception
+                if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") == "completed_no_output":
+                    raise Exception("Task completed successfully but the workflow produced no output results. Possible reasons: 1) Workflow is configured to execute but has no output nodes; 2) Output nodes are disabled; 3) Workflow logic resulted in no final output")
+
                 if isinstance(task_status_result, dict) and task_status_result.get("taskStatus") in ["RUNNING", "QUEUED"]:
+                    # Check if this is repeated RUNNING status (should be rare now with better detection)
+                    if task_status_result.get("taskStatus") == "RUNNING":
+                        consecutive_empty_results += 1
+                        print(f"Task status RUNNING with no output data (attempt {consecutive_empty_results}/{max_consecutive_empty})")
+                        
+                        if consecutive_empty_results >= max_consecutive_empty:
+                            # Multiple consecutive RUNNING status with no data suggests completed task with no output (backup detection)
+                            raise Exception("Task completed successfully but the workflow produced no output results. Possible reasons: 1) Workflow is configured to execute but has no output nodes; 2) Output nodes are disabled; 3) Workflow logic resulted in no final output")
+                    else:
+                        # For QUEUED status, reset counter as it's a different state
+                        consecutive_empty_results = 0
+                    
                     wait_time = min(retry_interval * (1.5 ** attempt), max_retry_interval)
                     print(f"Task still running ({task_status_result.get('taskStatus')}), waiting {wait_time:.1f} seconds...")
                     time.sleep(wait_time)
@@ -647,6 +723,7 @@ class ExecuteNode:
 
                 if isinstance(task_status_result, list) and len(task_status_result) > 0:
                     print("Got valid output result, processing files...")
+                    consecutive_empty_results = 0  # Reset counter on successful result
                     image_urls = []
                     video_urls = []
                     latent_urls = []
@@ -688,21 +765,44 @@ class ExecuteNode:
                             except Exception as img_e:
                                 print(f"Error downloading image {url}: {img_e}")
                         
-                        # If images were downloaded, find max dimensions and pad
+                        # If images were downloaded, normalize channels and find max dimensions
                         if downloaded_images:
                             if len(downloaded_images) > 1:
-                                print("Multiple images found. Checking dimensions and padding if necessary...")
+                                print("Multiple images found. Normalizing channels and checking dimensions...")
+                                
+                                # Check channel counts and find max
+                                max_channels = 0
                                 max_h = 0
                                 max_w = 0
                                 for img in downloaded_images:
                                     # Shape is [1, H, W, C]
                                     max_h = max(max_h, img.shape[1])
                                     max_w = max(max_w, img.shape[2])
-                                print(f"Max dimensions found: Height={max_h}, Width={max_w}")
+                                    max_channels = max(max_channels, img.shape[3])
+                                
+                                print(f"Max dimensions: Height={max_h}, Width={max_w}, Channels={max_channels}")
 
-                                padded_images = []
+                                # Normalize all images to same channel count and dimensions
+                                normalized_images = []
                                 for i, img_tensor in enumerate(downloaded_images):
-                                    _, h, w, _ = img_tensor.shape
+                                    _, h, w, c = img_tensor.shape
+                                    current_img = img_tensor
+                                    
+                                    # Normalize channels first
+                                    if c < max_channels:
+                                        if c == 3 and max_channels == 4:
+                                            # Add alpha channel (full opacity)
+                                            alpha_channel = torch.ones(1, h, w, 1, dtype=current_img.dtype, device=current_img.device)
+                                            current_img = torch.cat([current_img, alpha_channel], dim=3)
+                                            print(f"  Added alpha channel to image {i+1} (RGB->RGBA)")
+                                        else:
+                                            # General case: pad with zeros
+                                            padding_channels = max_channels - c
+                                            padding = torch.zeros(1, h, w, padding_channels, dtype=current_img.dtype, device=current_img.device)
+                                            current_img = torch.cat([current_img, padding], dim=3)
+                                            print(f"  Padded channels for image {i+1} from {c} to {max_channels}")
+                                    
+                                    # Then normalize spatial dimensions
                                     if h < max_h or w < max_w:
                                         pad_h_total = max_h - h
                                         pad_w_total = max_w - w
@@ -712,20 +812,27 @@ class ExecuteNode:
                                         pad_right = pad_w_total - pad_left
                                         
                                         # Permute [1, H, W, C] -> [1, C, H, W] for F.pad
-                                        img_permuted = img_tensor.permute(0, 3, 1, 2)
-                                        # Pad (pad is specified for last dimensions first: W, then H)
-                                        padded_permuted = F.pad(img_permuted, (pad_left, pad_right, pad_top, pad_bottom), "constant", 0)
+                                        img_permuted = current_img.permute(0, 3, 1, 2)
+                                        # Pad spatial dimensions (pad is specified for last dimensions first: W, then H)
+                                        # For RGBA images, pad with 0 for RGB channels and 1 for alpha channel
+                                        if max_channels == 4:
+                                            # Pad RGB channels with 0, alpha channel with 0 (transparent)
+                                            padded_permuted = F.pad(img_permuted, (pad_left, pad_right, pad_top, pad_bottom), "constant", 0)
+                                        else:
+                                            padded_permuted = F.pad(img_permuted, (pad_left, pad_right, pad_top, pad_bottom), "constant", 0)
+                                        
                                         # Permute back [1, C, H, W] -> [1, H, W, C]
                                         padded_img = padded_permuted.permute(0, 2, 3, 1)
                                         print(f"  Padded image {i+1} from {h}x{w} to {max_h}x{max_w}")
-                                        padded_images.append(padded_img)
+                                        normalized_images.append(padded_img)
                                     else:
-                                        print(f"  Image {i+1} already has max dimensions.")
-                                        padded_images.append(img_tensor) # Already max size
-                                image_data_list = padded_images # Use the padded list for concatenation
+                                        print(f"  Image {i+1} already has max spatial dimensions.")
+                                        normalized_images.append(current_img)
+                                
+                                image_data_list = normalized_images
                             else:
-                                # Only one image, no padding needed, just use it
-                                print("Only one image found, no padding needed.")
+                                # Only one image, no normalization needed, just use it
+                                print("Only one image found, no normalization needed.")
                                 image_data_list = downloaded_images
                         # else: image_data_list remains empty
 
@@ -787,8 +894,23 @@ class ExecuteNode:
                     print(f"Task failed with error: {task_status_result.get('error', 'Unknown error')}")
                     break # <<< Break within loop
 
+                elif isinstance(task_status_result, list) and len(task_status_result) == 0:
+                    # Handle empty result list - backup detection for completed task with no output
+                    consecutive_empty_results += 1
+                    print(f"Received empty result list (attempt {consecutive_empty_results}/{max_consecutive_empty}) - backup detection")
+                    
+                    if consecutive_empty_results >= max_consecutive_empty:
+                        # Task appears to be completed but with no output (should be rare with improved status detection)
+                        raise Exception("Task completed successfully but the workflow produced no output results. Possible reasons: 1) Workflow is configured to execute but has no output nodes; 2) Output nodes are disabled; 3) Workflow logic resulted in no final output")
+                    
+                    # Wait before retrying
+                    wait_time = min(retry_interval * (1.5 ** attempt), max_retry_interval)
+                    print(f"Waiting {wait_time:.1f} seconds before checking again...")
+                    time.sleep(wait_time)
+
                 else: # <<< Handle other cases or unexpected results
                     print(f"Unexpected task status or empty result, waiting...")
+                    consecutive_empty_results = 0  # Reset counter for other types of results
                     time.sleep(min(retry_interval * (1.5 ** attempt), max_retry_interval))
 
             except Exception as e: # <<< Added except clause
@@ -835,9 +957,23 @@ class ExecuteNode:
         # <<< Add audio_data to the return tuple
         return (final_image_batch, final_frame_batch, latent_data, text_data, audio_data) 
 
-    def create_placeholder_image(self, text="No image/video output", width=256, height=64):
-        """Creates a placeholder image tensor with text."""
-        img = Image.new('RGB', (width, height), color = (50, 50, 50)) # Dark gray background
+    def create_placeholder_image(self, text="No image/video output", width=256, height=64, with_alpha=False):
+        """Creates a placeholder image tensor with text.
+        
+        Args:
+            text: Text to display on the placeholder
+            width: Image width
+            height: Image height  
+            with_alpha: If True, creates RGBA image with alpha channel, otherwise RGB
+        """
+        # Create image with or without alpha channel
+        if with_alpha:
+            img = Image.new('RGBA', (width, height), color=(50, 50, 50, 255)) # Dark gray background, fully opaque
+            print("Creating RGBA placeholder image")
+        else:
+            img = Image.new('RGB', (width, height), color=(50, 50, 50)) # Dark gray background
+            print("Creating RGB placeholder image")
+            
         d = ImageDraw.Draw(img)
         try:
             # Attempt to load a simple default font (may vary by system)
@@ -862,12 +998,18 @@ class ExecuteNode:
             text_height = text_bbox[3] - text_bbox[1]
             text_x = (width - text_width) / 2
             text_y = (height - text_height) / 2
-            d.text((text_x, text_y), text, fill=(200, 200, 200), font=font) # Light gray text
+            
+            # Text color based on image mode
+            if with_alpha:
+                d.text((text_x, text_y), text, fill=(200, 200, 200, 255), font=font) # Light gray text, fully opaque
+            else:
+                d.text((text_x, text_y), text, fill=(200, 200, 200), font=font) # Light gray text
         except Exception as e:
             print(f"Error adding text to placeholder image: {e}. Returning image without text.")
         
         img_array = np.array(img).astype(np.float32) / 255.0
-        img_tensor = torch.from_numpy(img_array)[None,] # Shape: [1, H, W, C]
+        img_tensor = torch.from_numpy(img_array)[None,] # Shape: [1, H, W, C] where C=3 or 4
+        print(f"Placeholder image tensor shape: {img_tensor.shape}")
         return img_tensor
 
     def create_placeholder_latent(self, batch_size=1, channels=4, height=64, width=64):
@@ -885,9 +1027,10 @@ class ExecuteNode:
 
     def download_image(self, image_url):
         """
-        从 URL 下载图像并转换为适合预览或保存的 torch.Tensor 格式。
-        包含重试机制，最多重试5次。
-        Returns tensor [1, H, W, C] or None on failure.
+        Download image from URL and convert to torch.Tensor format suitable for preview or save.
+        Includes retry mechanism with maximum 5 retries.
+        Preserves PNG alpha channel (mask information).
+        Returns tensor [1, H, W, C] or None on failure, where C=3 for RGB or C=4 for RGBA.
         """
         max_retries = 5
         retry_delay = 1
@@ -903,9 +1046,24 @@ class ExecuteNode:
                 content_type = response.headers.get('Content-Type', '').lower()
                 # Consider validating content_type if needed
 
-                img = Image.open(BytesIO(response.content)).convert("RGB")
+                # Open image and preserve alpha channel if present
+                img = Image.open(BytesIO(response.content))
+                original_mode = img.mode
+                print(f"Original image mode: {original_mode}")
+                
+                # Preserve alpha channel for PNG images, convert others to RGB
+                if original_mode in ['RGBA', 'LA'] or (original_mode == 'P' and 'transparency' in img.info):
+                    # Convert to RGBA to preserve alpha/transparency information
+                    img = img.convert("RGBA")
+                    print("Preserving alpha channel (RGBA)")
+                else:
+                    # Convert to RGB for images without alpha channel
+                    img = img.convert("RGB")
+                    print("Converting to RGB (no alpha channel)")
+                
                 img_array = np.array(img).astype(np.float32) / 255.0
-                img_tensor = torch.from_numpy(img_array)[None,] # Shape: [1, H, W, C]
+                img_tensor = torch.from_numpy(img_array)[None,] # Shape: [1, H, W, C] where C=3 or 4
+                print(f"Final tensor shape: {img_tensor.shape}")
                 return img_tensor # Return on success
 
             except (requests.exceptions.RequestException, IOError, Image.UnidentifiedImageError) as e: # <<< Correct except clause
@@ -1373,7 +1531,7 @@ class ExecuteNode:
 
     def check_account_status(self, api_key, base_url):
         """
-        查询账户状态，检查是否可以提交新任务。包含重试机制。
+        Query account status and check if new tasks can be submitted. Includes retry mechanism.
         """
         if not api_key or not base_url:
             raise ValueError("API Key and Base URL are required for checking account status.")
@@ -1435,7 +1593,7 @@ class ExecuteNode:
 
     def create_task(self, apiConfig, nodeInfoList, base_url):
         """
-        创建任务，包含重试机制，最多重试5次
+        Create task with retry mechanism, maximum 5 retries
         """
         safe_base_url = apiConfig.get('base_url')
         # Use the updated key name here
@@ -1521,7 +1679,7 @@ class ExecuteNode:
     # <<< Add new function for creating AI App tasks >>>
     def create_ai_app_task(self, apiConfig, nodeInfoList, webappId):
         """
-        创建 AI 应用任务 (using /task/openapi/ai-app/run), 包含重试机制.
+        Create AI app task (using /task/openapi/ai-app/run) with retry mechanism.
         """
         safe_base_url = apiConfig.get('base_url')
         safe_api_key = apiConfig.get("apiKey")
@@ -1613,7 +1771,7 @@ class ExecuteNode:
 
     def check_task_status(self, task_id, api_key, base_url):
         """
-        查询任务状态。 Returns a dictionary representing status or list of outputs on success.
+        Query task status. Returns a dictionary representing status or list of outputs on success.
         """
         if not task_id or not api_key or not base_url:
              raise ValueError("Task ID, API Key, and Base URL are required for checking task status.")
@@ -1696,22 +1854,17 @@ class ExecuteNode:
                     print(f"API Error checking status (code {api_code}): {api_msg}")
                     return {"taskStatus": "error", "error": api_msg}
 
-                # 5. Check for code 0 but no data/output list (likely still running/initializing)
-                elif api_code == 0 and (api_data is None or (isinstance(api_data, list) and not api_data)):
-                    print(f"Check status ({task_id}): Task RUNNING (code 0, no output data yet).")
-                    # Check if WSS url is available even in this state
-                    possible_wss_url = None
-                    if isinstance(api_data, dict):
-                        possible_wss_url = api_data.get("netWssUrl")
+                # 5. Check for code 0 with empty data list - this indicates task completed with no output
+                elif api_code == 0 and isinstance(api_data, list) and not api_data:
+                    print(f"Check status ({task_id}): Task completed successfully but produced no output (code 0, empty data list).")
+                    return {"taskStatus": "completed_no_output"}
+                
+                # 6. Check for code 0 but no data (null) - this might indicate still running/initializing  
+                elif api_code == 0 and api_data is None:
+                    print(f"Check status ({task_id}): Task RUNNING (code 0, no data yet).")
+                    return {"taskStatus": "RUNNING"}
 
-                    if possible_wss_url:
-                         print(f"Check status ({task_id}): Task RUNNING (code 0, no output), found netWssUrl.")
-                         return {"taskStatus": "RUNNING", "netWssUrl": possible_wss_url}
-                    else:
-                         print(f"Check status ({task_id}): Task RUNNING (code 0, no output), netWssUrl not found.")
-                         return {"taskStatus": "RUNNING"}
-
-                # 6. Fallback for unknown successful response structure
+                # 7. Fallback for unknown successful response structure
                 else:
                     print(f"Unknown task status response structure: {result}")
                     return {"taskStatus": "unknown", "details": result}
