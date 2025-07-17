@@ -14,6 +14,28 @@ import safetensors.torch # <<< Added safetensors import
 import torchaudio 
 import torch.nn.functional as F # <<< Add F for padding
 
+# Try importing ComfyUI video classes safely
+try:
+    # Use the correct official ComfyUI import path
+    from comfy_api.input_impl import VideoFromFile
+    video_support_available = True
+    print("ComfyUI video support loaded successfully.")
+except ImportError:
+    try:
+        # Alternative import paths for different ComfyUI versions
+        from comfy_execution.graph_utils import VideoFromFile
+        video_support_available = True
+        print("ComfyUI video support loaded via alternative path.")
+    except ImportError:
+        try:
+            from comfy.graph_utils import VideoFromFile
+            video_support_available = True
+            print("ComfyUI video support loaded via legacy path.")
+        except ImportError:
+            # Fallback if video support not available
+            video_support_available = False
+            print("Warning: ComfyUI video support not available. VIDEO output will return None.")
+
 # Try importing folder_paths safely
 try:
     import folder_paths
@@ -102,8 +124,8 @@ class ExecuteNode:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE", "LATENT", "STRING", "AUDIO")
-    RETURN_NAMES = ("images", "video_frames", "latent", "text", "audio")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "LATENT", "STRING", "AUDIO", "VIDEO")
+    RETURN_NAMES = ("images", "video_frames", "latent", "text", "audio", "video")
 
     CATEGORY = "RunningHub"
     FUNCTION = "process"
@@ -725,7 +747,8 @@ class ExecuteNode:
                     print("Got valid output result, processing files...")
                     consecutive_empty_results = 0  # Reset counter on successful result
                     image_urls = []
-                    video_urls = []
+                    frame_video_urls = []  # For extracting frames from videos
+                    video_urls = []        # For ComfyUI VIDEO output (mp4 files)
                     latent_urls = []
                     text_urls = []
                     audio_urls = [] # <<< Add list for audio urls
@@ -739,7 +762,10 @@ class ExecuteNode:
                                 if file_type_lower in ["png", "jpg", "jpeg", "webp", "bmp", "gif"]:
                                     image_urls.append(file_url)
                                 elif file_type_lower in ["mp4", "avi", "mov", "webm"]:
-                                    video_urls.append(file_url)
+                                    # Add to both frame extraction and video output
+                                    frame_video_urls.append(file_url)  # For frame extraction
+                                    if file_type_lower == "mp4":  # Only mp4 for VIDEO output
+                                        video_urls.append(file_url)
                                 elif file_type_lower == "latent":
                                     latent_urls.append(file_url)
                                 elif file_type_lower == "txt":
@@ -837,9 +863,9 @@ class ExecuteNode:
                         # else: image_data_list remains empty
 
                     # Process Videos (extract frames) -> Add to frame_data_list
-                    if video_urls:
-                        print(f"Processing {len(video_urls)} videos for frames...")
-                        for url in video_urls:
+                    if frame_video_urls:
+                        print(f"Processing {len(frame_video_urls)} videos for frames...")
+                        for url in frame_video_urls:
                             try:
                                 frame_tensors = self.download_video(url)
                                 if frame_tensors:
@@ -886,6 +912,22 @@ class ExecuteNode:
                                      break # Process only the first successful audio file
                              except Exception as aud_e:
                                  print(f"Error processing audio file {url}: {aud_e}")
+
+                    # <<< Process Video Files (download the first mp4 found for VIDEO output)
+                    video_data = None
+                    if video_urls and video_support_available:
+                        print(f"Processing {len(video_urls)} mp4 video file(s) for VIDEO output...")
+                        for url in video_urls:
+                             try:
+                                 video_path = self.download_video_for_output(url)
+                                 if video_path is not None:
+                                     video_data = VideoFromFile(video_path)
+                                     print(f"Successfully created VIDEO output from {url}")
+                                     break # Process only the first successful video file
+                             except Exception as vid_e:
+                                 print(f"Error processing video file {url}: {vid_e}")
+                    elif video_urls and not video_support_available:
+                        print(f"Found {len(video_urls)} mp4 files but VIDEO support not available")
 
                     # Task processing complete, break the retry loop
                     break # <<< Break within loop
@@ -949,13 +991,34 @@ class ExecuteNode:
             print("No audio generated, creating placeholder.")
             audio_data = self.create_placeholder_audio()
 
+        # <<< Placeholder for video (only if video_data is None and no video_urls were found)
+        if 'video_data' not in locals():
+            video_data = None
+        if video_data is None:
+            print("No video generated, VIDEO output will be None.")
+
         # Batch images and frames separately
         final_image_batch = torch.cat(image_data_list, dim=0) if image_data_list else None
         final_frame_batch = torch.cat(frame_data_list, dim=0) if frame_data_list else None # <<< Batch frames
 
         # Ensure we return a tuple matching RETURN_TYPES
         # <<< Add audio_data to the return tuple
-        return (final_image_batch, final_frame_batch, latent_data, text_data, audio_data) 
+        # Debug: Check audio_data before returning (ComfyUI expects 3D: [batch, channels, samples])
+        if audio_data is not None and "waveform" in audio_data:
+            waveform = audio_data['waveform']
+            print(f"DEBUG: Final audio waveform shape: {waveform.shape}")
+            print(f"DEBUG: Final audio waveform ndim: {waveform.ndim}")
+            print(f"DEBUG: Final audio waveform dtype: {waveform.dtype}")
+            
+            # Verify ComfyUI standard format
+            if waveform.ndim == 3:
+                print(f"DEBUG: ✓ Correct ComfyUI format [batch={waveform.shape[0]}, channels={waveform.shape[1]}, samples={waveform.shape[2]}]")
+            else:
+                print(f"DEBUG: ✗ Unexpected format - ComfyUI expects 3D [batch, channels, samples]")
+        else:
+            print(f"DEBUG: audio_data is None or missing waveform key")
+        
+        return (final_image_batch, final_frame_batch, latent_data, text_data, audio_data, video_data) 
 
     def create_placeholder_image(self, text="No image/video output", width=256, height=64, with_alpha=False):
         """Creates a placeholder image tensor with text.
@@ -1019,11 +1082,28 @@ class ExecuteNode:
         
     # <<< Add placeholder audio function
     def create_placeholder_audio(self, sample_rate=44100, duration_sec=0.01):
-        """Creates a placeholder silent audio dictionary."""
+        """Creates a placeholder silent audio dictionary following ComfyUI's standard format."""
         print(f"Creating silent placeholder audio: {duration_sec}s @ {sample_rate}Hz")
         num_samples = int(sample_rate * duration_sec)
-        waveform = torch.zeros((1, num_samples), dtype=torch.float32) # Mono silence
-        return {"waveform": waveform, "sample_rate": sample_rate}
+        
+        # Create stereo waveform with shape [channels, samples] first
+        waveform = torch.zeros((2, num_samples), dtype=torch.float32)
+        
+        # Add batch dimension as per ComfyUI standard: [batch, channels, samples]
+        # This matches ComfyUI's LoadAudio implementation: waveform.unsqueeze(0)
+        waveform = waveform.unsqueeze(0)  # Now shape is [1, 2, num_samples]
+        
+        print(f"Placeholder audio tensor shape: {waveform.shape} [batch, channels, samples]")
+        print(f"Placeholder audio tensor ndim: {waveform.ndim}, dtype: {waveform.dtype}")
+        
+        # Create audio dictionary following ComfyUI standard
+        audio_dict = {
+            "waveform": waveform,
+            "sample_rate": sample_rate
+        }
+        
+        print(f"Created ComfyUI-standard audio dictionary with keys: {list(audio_dict.keys())}")
+        return audio_dict
 
     def download_image(self, image_url):
         """
@@ -1210,6 +1290,77 @@ class ExecuteNode:
                     print(f"Error deleting temporary video file {video_path}: {e}")
 
         return frame_tensors
+
+    def download_video_for_output(self, video_url):
+        """
+        Downloads a video file for ComfyUI VIDEO output and returns the file path.
+        Unlike download_video(), this method does NOT delete the file as VideoFromFile needs the path.
+        Returns the path to the downloaded video file or None on failure.
+        """
+        max_retries = 5
+        retry_delay = 1
+        last_exception = None
+        video_path = None
+        output_dir = "temp"
+
+        # --- Ensure temp directory exists ---
+        if not os.path.exists(output_dir):
+            try:
+                os.makedirs(output_dir)
+                print(f"Created temporary directory: {output_dir}")
+            except OSError as e:
+                print(f"Error creating temporary directory {output_dir}: {e}")
+                return None
+
+        # --- Download the video file ---
+        for attempt in range(max_retries):
+            video_path = None
+            try:
+                # Generate a unique filename for VIDEO output (persistent)
+                try:
+                    safe_filename = f"video_output_{os.path.basename(video_url)}_{str(int(time.time()*1000))}.mp4"
+                    safe_filename = "".join(c if c.isalnum() or c in ['.', '_', '-'] else '_' for c in safe_filename)[:150]
+                    video_path = os.path.join(output_dir, safe_filename)
+                except Exception as path_e:
+                    print(f"Error creating video output path: {path_e}")
+                    video_path = os.path.join(output_dir, f"video_output_{str(int(time.time()*1000))}.mp4")
+
+                print(f"Attempt {attempt + 1}/{max_retries} to download video for OUTPUT to: {video_path}")
+                response = requests.get(video_url, stream=True, timeout=60)
+                response.raise_for_status()
+
+                downloaded_size = 0
+                with open(video_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=65536):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded_size += len(chunk)
+
+                if downloaded_size > 0:
+                    print(f"Video downloaded successfully for OUTPUT: {video_path} ({downloaded_size} bytes)")
+                    return video_path  # Return path for VideoFromFile
+                else:
+                    print(f"Warning: Downloaded video file is empty: {video_path}")
+                    if os.path.exists(video_path):
+                        try: os.remove(video_path)
+                        except OSError: pass
+                    last_exception = IOError("Downloaded video file is empty.")
+
+            except (requests.exceptions.RequestException, IOError) as e:
+                 print(f"Download video for output attempt {attempt + 1} failed: {e}")
+                 last_exception = e
+                 if video_path and os.path.exists(video_path):
+                     try: os.remove(video_path)
+                     except OSError: pass
+
+            if attempt < max_retries - 1:
+                print(f"Retrying download in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+
+        # All attempts failed
+        print(f"Failed to download video {video_url} for OUTPUT after {max_retries} attempts.")
+        return None
 
     def download_and_load_latent(self, latent_url):
         """
@@ -1506,13 +1657,27 @@ class ExecuteNode:
                 print("Audio waveform is not contiguous. Making it contiguous.")
                 waveform = waveform.contiguous()
 
-            # <<< ADD BATCH DIMENSION TO MATCH STANDARD COMFYUI AUDIO FORMAT <<<
+            # torchaudio.load returns [channels, samples]
+            # Follow ComfyUI standard format by adding batch dimension
+            
+            # Ensure mono audio becomes stereo for better compatibility
+            if waveform.shape[0] == 1:
+                # Convert mono to stereo by duplicating the channel
+                waveform = waveform.repeat(2, 1)
+                print(f"Converted mono audio to stereo: {waveform.shape}")
+            
+            # Add batch dimension as per ComfyUI standard: [batch, channels, samples]
+            # This matches ComfyUI's LoadAudio implementation: waveform.unsqueeze(0)
             waveform = waveform.unsqueeze(0)
-
-            # Most nodes seem to work with [channels, samples] or just [samples] if mono.
-            # torchaudio.load returns [channels, samples]. Let's stick with that.
-            print(f"Audio loaded successfully: Shape={waveform.shape}, Sample Rate={sample_rate} Hz, dtype={waveform.dtype}, Contiguous={waveform.is_contiguous()}") # <<< Added contiguous log
-            processed_audio = {"waveform": waveform, "sample_rate": sample_rate}
+            
+            print(f"Audio loaded successfully: Shape={waveform.shape} [batch, channels, samples], Sample Rate={sample_rate} Hz, dtype={waveform.dtype}")
+            
+            # Create audio dictionary following ComfyUI standard
+            processed_audio = {
+                "waveform": waveform,
+                "sample_rate": sample_rate
+            }
+            print(f"Created ComfyUI-standard processed audio dictionary with keys: {list(processed_audio.keys())}")
 
         except Exception as e:
             print(f"Error processing audio file {audio_path} with torchaudio: {e}")

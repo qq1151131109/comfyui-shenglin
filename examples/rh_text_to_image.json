@@ -1,453 +1,101 @@
-{
-  "last_node_id": 33,
-  "last_link_id": 24,
-  "nodes": [
-    {
-      "id": 18,
-      "type": "RH_NodeInfoListNode",
-      "pos": [
-        66,
-        1291
-      ],
-      "size": [
-        330,
-        126
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [
+curl --location --request POST 'https://www.runninghub.cn/task/openapi/ai-app/run' \
+--header 'Host: www.runninghub.cn' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "webappId": 1941952386518904834,
+    "apiKey": "ed37fbdd79c34a7ca612aedbe5cea13e",
+    "nodeInfoList": [
         {
-          "name": "previousNodeInfoList",
-          "label": "previousNodeInfoList",
-          "type": "ARRAY",
-          "shape": 7,
-          "link": null
-        },
-        {
-          "name": "fieldValue",
-          "label": "fieldValue",
-          "type": "STRING",
-          "widget": {
-            "name": "fieldValue"
-          },
-          "link": 24,
-          "slot_index": 1
+            "nodeId": "3",
+            "fieldName": "frame_load_cap",
+            "fieldValue": "0"
         }
-      ],
-      "outputs": [
-        {
-          "name": "ARRAY",
-          "label": "ARRAY",
-          "type": "ARRAY",
-          "shape": 3,
-          "links": [
-            13
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI_RH_APICall",
-        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
-        "Node name for S&R": "RH_NodeInfoListNode"
-      },
-      "widgets_values": [
-        25,
-        "noise_seed",
-        "ice"
-      ]
-    },
-    {
-      "id": 17,
-      "type": "RH_NodeInfoListNode",
-      "pos": [
-        68,
-        1440
-      ],
-      "size": [
-        330,
-        106
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "previousNodeInfoList",
-          "label": "previousNodeInfoList",
-          "type": "ARRAY",
-          "shape": 7,
-          "link": 13
-        }
-      ],
-      "outputs": [
-        {
-          "name": "ARRAY",
-          "label": "ARRAY",
-          "type": "ARRAY",
-          "shape": 3,
-          "links": [
-            18
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI_RH_APICall",
-        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
-        "Node name for S&R": "RH_NodeInfoListNode"
-      },
-      "widgets_values": [
-        45,
-        "prompt",
-        "土星环"
-      ]
-    },
-    {
-      "id": 28,
-      "type": "RH_NodeInfoListNode",
-      "pos": [
-        67,
-        1591
-      ],
-      "size": [
-        330,
-        106
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "previousNodeInfoList",
-          "label": "previousNodeInfoList",
-          "type": "ARRAY",
-          "shape": 7,
-          "link": 18
-        }
-      ],
-      "outputs": [
-        {
-          "name": "ARRAY",
-          "label": "ARRAY",
-          "type": "ARRAY",
-          "shape": 3,
-          "links": [
-            21
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI_RH_APICall",
-        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
-        "Node name for S&R": "RH_NodeInfoListNode"
-      },
-      "widgets_values": [
-        5,
-        "batch_size",
-        "2"
-      ]
-    },
-    {
-      "id": 27,
-      "type": "SaveImage",
-      "pos": [
-        957,
-        1049
-      ],
-      "size": [
-        545.910400390625,
-        761.0469360351562
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "label": "images",
-          "type": "IMAGE",
-          "link": 22
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.28",
-        "Node name for S&R": "SaveImage"
-      },
-      "widgets_values": [
-        "ComfyUI"
-      ]
-    },
-    {
-      "id": 9,
-      "type": "RH_SettingsNode",
-      "pos": [
-        72,
-        1132
-      ],
-      "size": [
-        315,
-        106
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRUCT",
-          "label": "STRUCT",
-          "type": "STRUCT",
-          "shape": 3,
-          "links": [
-            20
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI_RH_APICall",
-        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
-        "Node name for S&R": "RH_SettingsNode"
-      },
-      "widgets_values": [
-        "https://www.runninghub.cn",
-        "ed37fbdd79c34a7ca612aedbe5cea13e",
-        "1866574464472215553"
-      ]
-    },
-    {
-      "id": 19,
-      "type": "easy seed",
-      "pos": [
-        -325,
-        1298
-      ],
-      "size": [
-        315,
-        106
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "seed",
-          "label": "seed",
-          "type": "INT",
-          "shape": 3,
-          "links": [
-            23
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui-easy-use",
-        "ver": "98273b37f20dafb4b28316b8d6e45bf28e4130fe",
-        "Node name for S&R": "easy seed"
-      },
-      "widgets_values": [
-        661888457586111,
-        "randomize",
-        null
-      ]
-    },
-    {
-      "id": 33,
-      "type": "RH_Utils",
-      "pos": [
-        -201,
-        1209
-      ],
-      "size": [
-        210,
-        26
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "anything",
-          "label": "anything",
-          "type": "*",
-          "link": 23
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "label": "STRING",
-          "type": "STRING",
-          "shape": 3,
-          "links": [
-            24
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI_RH_APICall",
-        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
-        "Node name for S&R": "RH_Utils"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 30,
-      "type": "RH_ExecuteNode",
-      "pos": [
-        551,
-        1315
-      ],
-      "size": [
-        315,
-        162
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "apiConfig",
-          "label": "apiConfig",
-          "type": "STRUCT",
-          "link": 20
-        },
-        {
-          "name": "nodeInfoList",
-          "label": "nodeInfoList",
-          "type": "ARRAY",
-          "shape": 7,
-          "link": 21
-        }
-      ],
-      "outputs": [
-        {
-          "name": "images",
-          "label": "images",
-          "type": "IMAGE",
-          "shape": 3,
-          "links": [
-            22
-          ],
-          "slot_index": 0
-        },
-        {
-          "name": "video_frames",
-          "label": "video_frames",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "name": "latent",
-          "label": "latent",
-          "type": "LATENT",
-          "links": null
-        },
-        {
-          "name": "text",
-          "label": "text",
-          "type": "STRING",
-          "links": null
-        },
-        {
-          "name": "audio",
-          "label": "audio",
-          "type": "AUDIO",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI_RH_APICall",
-        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
-        "Node name for S&R": "RH_ExecuteNode"
-      },
-      "widgets_values": [
-        600,
-        3
-      ]
-    }
-  ],
-  "links": [
-    [
-      13,
-      18,
-      0,
-      17,
-      0,
-      "ARRAY"
-    ],
-    [
-      18,
-      17,
-      0,
-      28,
-      0,
-      "ARRAY"
-    ],
-    [
-      20,
-      9,
-      0,
-      30,
-      0,
-      "STRUCT"
-    ],
-    [
-      21,
-      28,
-      0,
-      30,
-      1,
-      "ARRAY"
-    ],
-    [
-      22,
-      30,
-      0,
-      27,
-      0,
-      "IMAGE"
-    ],
-    [
-      23,
-      19,
-      0,
-      33,
-      0,
-      "*"
-    ],
-    [
-      24,
-      33,
-      0,
-      18,
-      1,
-      "STRING"
     ]
-  ],
-  "groups": [],
-  "config": {},
-  "extra": {
-    "ds": {
-      "scale": 0.9481993680645889,
-      "offset": [
-        566.524353466392,
-        -872.7070128111055
-      ]
-    },
-    "ue_links": [],
-    "VHS_latentpreview": false,
-    "VHS_latentpreviewrate": 0,
-    "VHS_MetadataImage": true,
-    "VHS_KeepIntermediate": true
-  },
-  "version": 0.4
-}
+}'
+
+for i in {1..300}; do
+    echo "执行第 $i 次请求..."
+curl --location --request POST 'https://www.runninghub.cn/task/openapi/ai-app/run' \
+--header 'Host: www.runninghub.cn' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "webappId": 1942330527011770370,
+    "apiKey": "ed37fbdd79c34a7ca612aedbe5cea13e",
+    "nodeInfoList": [
+        {
+            "nodeId": "3",
+            "fieldName": "file",
+            "fieldValue": "501edab6b428cb222420e2f66890b15d844d256f4f447b9b56a2dc229608a394.mp4"
+        }
+    ]
+}'\
+    --silent \
+    --show-error)
+    
+    # 检查请求是否成功
+    if [ $? -eq 0 ]; then
+        echo "第 $i 次请求成功"
+        echo "响应: $response"
+    else
+        echo "第 $i 次请求失败"
+    fi
+    
+    echo "----------------------------------------"
+    
+    # 可选：添加延迟以避免过于频繁的请求
+    # sleep 1
+done
+
+echo "所有300次请求执行完成！" 
+
+
+#!/bin/bash
+
+# 循环执行curl请求300次
+echo "开始执行300次curl请求..."
+
+for i in {1..300}; do
+    echo "执行第 $i 次请求..."
+    
+    response=$(curl --location --request POST 'https://www.runninghub.cn/task/openapi/ai-app/run' \
+--header 'Host: www.runninghub.cn' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "webappId": 1942653983884554241,
+    "apiKey": "ed37fbdd79c34a7ca612aedbe5cea13e",
+    "nodeInfoList": [
+        {
+            "nodeId": "3",
+            "fieldName": "image",
+            "fieldValue": "clipspace/b81e105509634463c8d86683b129f600_a5495286dd546879002a9a07c8b9bf221ba5dcb7b0885d38de4c4345b9e0c9ba.png [input]"
+        },
+        {
+            "nodeId": "47",
+            "fieldName": "image",
+            "fieldValue": "9d54904872c24ef4f0e9b22c774d63662cd04ddd5ea0d2288380d1d6371bb286.jpg"
+        },
+        {
+            "nodeId": "61",
+            "fieldName": "text",
+            "fieldValue": "界"
+        }
+    ]
+}'\
+    --silent \
+    --show-error)
+    
+    # 检查请求是否成功
+    if [ $? -eq 0 ]; then
+        echo "第 $i 次请求成功"
+        echo "响应: $response"
+    else
+        echo "第 $i 次请求失败"
+    fi
+    
+    echo "----------------------------------------"
+    
+    # 可选：添加延迟以避免过于频繁的请求
+    # sleep 1
+done
+
+echo "所有300次请求执行完成！"
