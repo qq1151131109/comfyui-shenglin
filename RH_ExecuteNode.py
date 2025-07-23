@@ -121,6 +121,7 @@ class ExecuteNode:
                 "run_timeout": ("INT", {"default": 600, "min": 1, "max": 9999999}), # Corrected comma and added closing brace
                 "concurrency_limit": ("INT", {"default": 1, "min": 1, "max": 100}), # Restored min/max
                 "is_webapp_task": ("BOOLEAN", {"default": False}),
+                "use_rtx4090_48g": ("BOOLEAN", {"default": False}),
             },
         }
 
@@ -376,7 +377,7 @@ class ExecuteNode:
         raise Exception(f"Failed to get workflow node count after {max_retries} attempts (unexpected loop end). Last error: {last_exception}")
 
     # --- Main Process Method ---
-    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1, is_webapp_task=False):
+    def process(self, apiConfig, nodeInfoList=None, run_timeout=600, concurrency_limit=1, is_webapp_task=False, use_rtx4090_48g=False):
         # Reset state
         with self.node_lock: # Use lock for resetting shared state
             self.executed_nodes.clear()
@@ -475,12 +476,12 @@ class ExecuteNode:
                 webappId_to_pass = retrieved_workflow_id # Use the ID from config
                 # Update print log message
                 print(f"Creating Webapp task with webappId: {webappId_to_pass}...")
-                task_creation_result = self.create_ai_app_task(apiConfig, nodeInfoList or [], webappId_to_pass)
+                task_creation_result = self.create_ai_app_task(apiConfig, nodeInfoList or [], webappId_to_pass, use_rtx4090_48g)
             else:
                 # Call standard ComfyUI Task creation
                 print("Creating standard ComfyUI task...")
                 # <<< Add base_url back to the create_task call >>>
-                task_creation_result = self.create_task(apiConfig, nodeInfoList or [], base_url)
+                task_creation_result = self.create_task(apiConfig, nodeInfoList or [], base_url, use_rtx4090_48g)
 
             print(f"Task Creation Result: {json.dumps(task_creation_result, indent=2, ensure_ascii=False)}")
 
@@ -1756,7 +1757,7 @@ class ExecuteNode:
         raise Exception(f"Failed to check account status after {max_retries} attempts (unexpected loop end). Last error: {last_exception}")
 
 
-    def create_task(self, apiConfig, nodeInfoList, base_url):
+    def create_task(self, apiConfig, nodeInfoList, base_url, use_rtx4090_48g):
         """
         Create task with retry mechanism, maximum 5 retries
         """
@@ -1780,6 +1781,10 @@ class ExecuteNode:
             "apiKey": safe_api_key,
             "nodeInfoList": nodeInfoList,
         }
+        
+        # Add instanceType if RTX 4090 48G is requested
+        if use_rtx4090_48g:
+            data["instanceType"] = "plus"
 
         max_retries = 5
         retry_delay = 1
@@ -1842,7 +1847,7 @@ class ExecuteNode:
         raise Exception("Task creation failed unexpectedly after retry loop.")
 
     # <<< Add new function for creating AI App tasks >>>
-    def create_ai_app_task(self, apiConfig, nodeInfoList, webappId):
+    def create_ai_app_task(self, apiConfig, nodeInfoList, webappId, use_rtx4090_48g):
         """
         Create AI app task (using /task/openapi/ai-app/run) with retry mechanism.
         """
@@ -1871,6 +1876,10 @@ class ExecuteNode:
             "apiKey": safe_api_key,
             "nodeInfoList": nodeInfoList,
         }
+        
+        # Add instanceType if RTX 4090 48G is requested
+        if use_rtx4090_48g:
+            data["instanceType"] = "plus"
 
         max_retries = 5
         retry_delay = 1
