@@ -1,0 +1,10 @@
+# ComfyUI Shenglin 依赖包
+aiohttp>=3.8.0
+asyncio
+torch
+torchvision
+numpy
+pillow
+requests
+ffmpeg-python
+opencv-python
