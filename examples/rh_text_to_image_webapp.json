@@ -1,0 +1,237 @@
+{
+  "last_node_id": 4,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "RH_NodeInfoListNode",
+      "pos": [
+        1314.8992919921875,
+        603.4961547851562
+      ],
+      "size": [
+        502.9493103027344,
+        153.85723876953125
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "previousNodeInfoList",
+          "label": "previousNodeInfoList",
+          "type": "ARRAY",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ARRAY",
+          "label": "ARRAY",
+          "type": "ARRAY",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "d26b20496040d4b4dbea590ac3690d587ae103b3",
+        "Node name for S&R": "RH_NodeInfoListNode"
+      },
+      "widgets_values": [
+        50,
+        "text",
+        "可爱的动漫女孩，有着巨大的蓬松耳廓狐耳朵和一条蓬松的大尾巴"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "SaveImage",
+      "pos": [
+        2253.56494140625,
+        431.4947814941406
+      ],
+      "size": [
+        315,
+        270
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "label": "images",
+          "type": "IMAGE",
+          "link": 3
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.28",
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "RH_SettingsNode",
+      "pos": [
+        1389.765380859375,
+        393.1142578125
+      ],
+      "size": [
+        315,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRUCT",
+          "label": "STRUCT",
+          "type": "STRUCT",
+          "shape": 3,
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "f0f16c02a2fd8ee80a84a4233713e1fb2f7c516c",
+        "Node name for S&R": "RH_SettingsNode"
+      },
+      "widgets_values": [
+        "https://www.runninghub.cn",
+        "ed37fbdd79c34a7ca612aedbe5cea13e",
+        " 1872916082783936513"
+      ]
+    },
+    {
+      "id": 1,
+      "type": "RH_ExecuteNode",
+      "pos": [
+        1857.913818359375,
+        400.6954650878906
+      ],
+      "size": [
+        317.4000244140625,
+        186
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apiConfig",
+          "label": "apiConfig",
+          "type": "STRUCT",
+          "link": 1
+        },
+        {
+          "name": "nodeInfoList",
+          "label": "nodeInfoList",
+          "type": "ARRAY",
+          "shape": 7,
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "label": "images",
+          "type": "IMAGE",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "video_frames",
+          "label": "video_frames",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "latent",
+          "label": "latent",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "text",
+          "label": "text",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "audio",
+          "label": "audio",
+          "type": "AUDIO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_RH_APICall",
+        "ver": "d26b20496040d4b4dbea590ac3690d587ae103b3",
+        "Node name for S&R": "RH_ExecuteNode"
+      },
+      "widgets_values": [
+        600,
+        1,
+        true
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      1,
+      0,
+      "STRUCT"
+    ],
+    [
+      2,
+      3,
+      0,
+      1,
+      1,
+      "ARRAY"
+    ],
+    [
+      3,
+      1,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.3190278677309182,
+      "offset": [
+        -1163.4583704041254,
+        -50.5323127741312
+      ]
+    },
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

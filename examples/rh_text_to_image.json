@@ -1,0 +1,101 @@
+curl --location --request POST 'https://www.runninghub.cn/task/openapi/ai-app/run' \
+--header 'Host: www.runninghub.cn' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "webappId": 1941952386518904834,
+    "apiKey": "ed37fbdd79c34a7ca612aedbe5cea13e",
+    "nodeInfoList": [
+        {
+            "nodeId": "3",
+            "fieldName": "frame_load_cap",
+            "fieldValue": "0"
+        }
+    ]
+}'
+
+for i in {1..300}; do
+    echo "执行第 $i 次请求..."
+curl --location --request POST 'https://www.runninghub.cn/task/openapi/ai-app/run' \
+--header 'Host: www.runninghub.cn' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "webappId": 1942330527011770370,
+    "apiKey": "ed37fbdd79c34a7ca612aedbe5cea13e",
+    "nodeInfoList": [
+        {
+            "nodeId": "3",
+            "fieldName": "file",
+            "fieldValue": "501edab6b428cb222420e2f66890b15d844d256f4f447b9b56a2dc229608a394.mp4"
+        }
+    ]
+}'\
+    --silent \
+    --show-error)
+    
+    # 检查请求是否成功
+    if [ $? -eq 0 ]; then
+        echo "第 $i 次请求成功"
+        echo "响应: $response"
+    else
+        echo "第 $i 次请求失败"
+    fi
+    
+    echo "----------------------------------------"
+    
+    # 可选：添加延迟以避免过于频繁的请求
+    # sleep 1
+done
+
+echo "所有300次请求执行完成！" 
+
+
+#!/bin/bash
+
+# 循环执行curl请求300次
+echo "开始执行300次curl请求..."
+
+for i in {1..300}; do
+    echo "执行第 $i 次请求..."
+    
+    response=$(curl --location --request POST 'https://www.runninghub.cn/task/openapi/ai-app/run' \
+--header 'Host: www.runninghub.cn' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "webappId": 1942653983884554241,
+    "apiKey": "ed37fbdd79c34a7ca612aedbe5cea13e",
+    "nodeInfoList": [
+        {
+            "nodeId": "3",
+            "fieldName": "image",
+            "fieldValue": "clipspace/b81e105509634463c8d86683b129f600_a5495286dd546879002a9a07c8b9bf221ba5dcb7b0885d38de4c4345b9e0c9ba.png [input]"
+        },
+        {
+            "nodeId": "47",
+            "fieldName": "image",
+            "fieldValue": "9d54904872c24ef4f0e9b22c774d63662cd04ddd5ea0d2288380d1d6371bb286.jpg"
+        },
+        {
+            "nodeId": "61",
+            "fieldName": "text",
+            "fieldValue": "界"
+        }
+    ]
+}'\
+    --silent \
+    --show-error)
+    
+    # 检查请求是否成功
+    if [ $? -eq 0 ]; then
+        echo "第 $i 次请求成功"
+        echo "响应: $response"
+    else
+        echo "第 $i 次请求失败"
+    fi
+    
+    echo "----------------------------------------"
+    
+    # 可选：添加延迟以避免过于频繁的请求
+    # sleep 1
+done
+
+echo "所有300次请求执行完成！"
