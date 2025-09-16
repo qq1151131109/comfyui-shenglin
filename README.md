@@ -1,4 +1,4 @@
-# ComfyUI Shenglin - 盛林的自定义节点集合
+# ComfyUI Shenglin - 圣林的自定义节点集合
 
 一个功能完整的ComfyUI自定义节点集合，包含AI文生图、语音合成、视频制作等完整工具链。
 
@@ -71,4 +71,4 @@ git clone https://github.com/qq1151131109/comfyui-shenglin.git
 
 ⭐ **如果觉得有用，请给个星标支持！**
 
-作者: 盛林 | 版本: 1.0.0
+作者: 圣林 | 版本: 1.0.0

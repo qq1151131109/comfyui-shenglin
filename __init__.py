@@ -1,5 +1,5 @@
 """
-ComfyUI Shenglin - 盛林的ComfyUI自定义节点集合
+ComfyUI Shenglin - 圣林的ComfyUI自定义节点集合
 包含RunningHub API、MiniMax TTS、视频合成等完整工具链
 """
 
@@ -7,9 +7,13 @@ ComfyUI Shenglin - 盛林的ComfyUI自定义节点集合
 from .runninghub.batch_runninghub_text_to_image import RunningHubFluxTextToImage
 from .runninghub.runninghub_qwen_advanced import RunningHubQwenAdvanced
 from .runninghub.runninghub_qwen_text_to_image import RunningHubQwenTextToImage
+from .runninghub.rh_execute_node import ExecuteNode
+from .runninghub.rh_settings_node import SettingsNode
+from .runninghub.rh_node_info_list import NodeInfoListNode
+from .runninghub.rh_utils import AnyToStringNode, RH_Extract_Image_From_List, RH_Batch_Images_From_List
 
 # MiniMax TTS模块
-from .minimax_tts.batch_minimax_tts import BatchMiniMaxTTS
+from .minimax_tts.batch_minimax_tts import BatchMiniMaxTTSNode
 from .minimax_tts.minimax_tts_dynamic import MiniMaxTTSDynamicNode
 from .minimax_tts.batch_audio_preview import BatchAudioPreview
 
@@ -26,9 +30,15 @@ NODE_CLASS_MAPPINGS = {
     "RunningHubFluxTextToImage": RunningHubFluxTextToImage,
     "RunningHubQwenAdvanced": RunningHubQwenAdvanced,
     "RunningHubQwenTextToImage": RunningHubQwenTextToImage,
+    "RHExecuteNode": ExecuteNode,
+    "RHSettingsNode": SettingsNode,
+    "RHNodeInfoListNode": NodeInfoListNode,
+    "RHAnyToString": AnyToStringNode,
+    "RHExtractImageFromList": RH_Extract_Image_From_List,
+    "RHBatchImagesFromList": RH_Batch_Images_From_List,
 
     # MiniMax TTS节点
-    "BatchMiniMaxTTS": BatchMiniMaxTTS,
+    "BatchMiniMaxTTS": BatchMiniMaxTTSNode,
     "MiniMaxTTSDynamic": MiniMaxTTSDynamicNode,
     "BatchAudioPreview": BatchAudioPreview,
 
@@ -46,6 +56,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RunningHubFluxTextToImage": "🎨 RunningHub Flux文生图",
     "RunningHubQwenAdvanced": "🎨 RunningHub Qwen高级版",
     "RunningHubQwenTextToImage": "🎨 RunningHub Qwen文生图",
+    "RHExecuteNode": "⚙️ RH执行节点",
+    "RHSettingsNode": "🔧 RH设置节点",
+    "RHNodeInfoListNode": "📋 RH节点信息列表",
+    "RHAnyToString": "🔄 RH任意转字符串",
+    "RHExtractImageFromList": "🖼️ RH提取图片",
+    "RHBatchImagesFromList": "📦 RH批量图片",
 
     # MiniMax TTS节点
     "BatchMiniMaxTTS": "🎵 MiniMax批量TTS",
@@ -66,11 +82,11 @@ WEB_DIRECTORY = "./video_system/web"
 # 版本信息
 __version__ = "1.0.0"
 __author__ = "Shenglin"
-__description__ = "盛林的ComfyUI自定义节点集合：RunningHub API集成、MiniMax TTS、视频合成工具链"
+__description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成、MiniMax TTS、视频合成工具链"
 
 # ComfyUI必需的导出
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 
 print("🎉 ComfyUI Shenglin 节点集合加载完成!")
-print(f"📝 RunningHub节点: 3个 | MiniMax TTS节点: 3个 | 视频系统节点: 5个")
+print(f"📝 RunningHub节点: 9个 | MiniMax TTS节点: 3个 | 视频系统节点: 5个")
 print(f"🚀 总计: {len(NODE_CLASS_MAPPINGS)} 个自定义节点")
