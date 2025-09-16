@@ -47,7 +47,7 @@ class VideoPreview:
     RETURN_TYPES = ()
     FUNCTION = "preview_video"
     OUTPUT_NODE = True
-    CATEGORY = "🎬 Video"
+    CATEGORY = "🎬 Shenglin/Video"
     DESCRIPTION = "在ComfyUI界面中预览视频"
 
     def __init__(self):

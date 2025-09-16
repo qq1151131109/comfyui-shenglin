@@ -39,7 +39,7 @@ class StoryTimelineBuilder:
     RETURN_NAMES = ("audio_timeline", "video_timeline", "subtitle_timeline", "title_timeline", "animation_timeline")
     
     FUNCTION = "build_timeline"
-    CATEGORY = "StoryVideoGenerator"
+    CATEGORY = "🎬 Shenglin/Video"
     
     def build_timeline(self, scenes_data: str, audio_urls: List[str], image_urls: List[str], 
                       durations_microseconds: List[int], title: str, character_image_url: str) -> Tuple[str, str, str, str, str]:

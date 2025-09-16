@@ -60,7 +60,7 @@ class RunningHubQwenTextToImage:
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("images", "info")
     FUNCTION = "generate_qwen_images"
-    CATEGORY = "🎨 RunningHub"
+    CATEGORY = "🎨 Shenglin/RunningHub"
     DESCRIPTION = "使用RunningHub Qwen模型批量生成图片"
 
     def generate_qwen_images(self, prompts: str, api_key: str, aspect_ratio: str,

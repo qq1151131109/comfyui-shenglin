@@ -11,6 +11,9 @@ from .runninghub.rh_execute_node import ExecuteNode
 from .runninghub.rh_settings_node import SettingsNode
 from .runninghub.rh_node_info_list import NodeInfoListNode
 from .runninghub.rh_utils import AnyToStringNode, RH_Extract_Image_From_List, RH_Batch_Images_From_List
+from .runninghub.rh_audio_uploader import RH_AudioUploader
+from .runninghub.rh_video_uploader import RH_VideoUploader
+from .runninghub.rh_image_uploader import ImageUploaderNode
 
 # MiniMax TTS模块
 from .minimax_tts.batch_minimax_tts import BatchMiniMaxTTSNode
@@ -36,6 +39,9 @@ NODE_CLASS_MAPPINGS = {
     "RHAnyToString": AnyToStringNode,
     "RHExtractImageFromList": RH_Extract_Image_From_List,
     "RHBatchImagesFromList": RH_Batch_Images_From_List,
+    "RHAudioUploader": RH_AudioUploader,
+    "RHVideoUploader": RH_VideoUploader,
+    "RHImageUploader": ImageUploaderNode,
 
     # MiniMax TTS节点
     "BatchMiniMaxTTS": BatchMiniMaxTTSNode,
@@ -62,6 +68,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RHAnyToString": "🔄 RH任意转字符串",
     "RHExtractImageFromList": "🖼️ RH提取图片",
     "RHBatchImagesFromList": "📦 RH批量图片",
+    "RHAudioUploader": "🎵 RH音频上传",
+    "RHVideoUploader": "🎬 RH视频上传",
+    "RHImageUploader": "🖼️ RH图片上传",
 
     # MiniMax TTS节点
     "BatchMiniMaxTTS": "🎵 MiniMax批量TTS",
@@ -88,5 +97,5 @@ __description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成�
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 
 print("🎉 ComfyUI Shenglin 节点集合加载完成!")
-print(f"📝 RunningHub节点: 9个 | MiniMax TTS节点: 3个 | 视频系统节点: 5个")
+print(f"📝 RunningHub节点: 12个 | MiniMax TTS节点: 3个 | 视频系统节点: 5个")
 print(f"🚀 总计: {len(NODE_CLASS_MAPPINGS)} 个自定义节点")

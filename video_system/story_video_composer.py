@@ -34,7 +34,7 @@ class StoryVideoComposer:
     RETURN_NAMES = ("video_path", "composition_data")
     
     FUNCTION = "compose_video"
-    CATEGORY = "StoryVideoGenerator"
+    CATEGORY = "🎬 Shenglin/Video"
     
     def compose_video(self, audio_timeline: str, video_timeline: str, subtitle_timeline: str,
                      title_timeline: str, animation_data: str) -> Tuple[str, str]:

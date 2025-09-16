@@ -31,7 +31,7 @@ class BatchAudioPreview:
     RETURN_TYPES = ()
     FUNCTION = "preview_batch_audio"
     OUTPUT_NODE = True
-    CATEGORY = "🎵 Audio/Preview"
+    CATEGORY = "🎵 Shenglin/Audio"
     DESCRIPTION = "预览批量音频，每个音频独立播放"
 
     def __init__(self):

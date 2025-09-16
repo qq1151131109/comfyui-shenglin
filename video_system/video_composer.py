@@ -79,7 +79,7 @@ class VideoComposer:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("video_path", "info")
     FUNCTION = "compose_video"
-    CATEGORY = "🎬 Video"
+    CATEGORY = "🎬 Shenglin/Video"
     DESCRIPTION = "将音频列表和图片合成为同步视频"
 
     def __init__(self):

@@ -17,7 +17,7 @@ class NodeInfoListNode:
         }
 
     RETURN_TYPES = ("ARRAY",)  # Change output type to ARRAY
-    CATEGORY = "RunningHub"
+    CATEGORY = "⚙️ Shenglin/RunningHub/Tools"
     FUNCTION = "process"
 
     def process(self, nodeId, fieldName, fieldValue, previousNodeInfoList=None):

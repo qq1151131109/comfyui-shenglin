@@ -29,7 +29,7 @@ class StoryAnimationProcessor:
     RETURN_NAMES = ("processed_animation_data",)
     
     FUNCTION = "process_animations"
-    CATEGORY = "StoryVideoGenerator"
+    CATEGORY = "🎬 Shenglin/Video"
     
     def process_animations(self, animation_timeline: str, video_timeline: str) -> Tuple[str]:
         """处理动画数据，生成最终的关键帧配置"""
@@ -204,7 +204,7 @@ class StoryAnimationApplier:
     RETURN_NAMES = ("animated_video_data",)
     
     FUNCTION = "apply_animations"
-    CATEGORY = "StoryVideoGenerator"
+    CATEGORY = "🎬 Shenglin/Video"
     
     def apply_animations(self, video_data: str, animation_data: str) -> Tuple[str]:
         """将动画配置应用到视频数据"""

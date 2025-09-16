@@ -128,7 +128,7 @@ class ExecuteNode:
     RETURN_TYPES = ("IMAGE", "IMAGE", "LATENT", "STRING", "AUDIO", "VIDEO")
     RETURN_NAMES = ("images", "video_frames", "latent", "text", "audio", "video")
 
-    CATEGORY = "RunningHub"
+    CATEGORY = "⚙️ Shenglin/RunningHub/Tools"
     FUNCTION = "process"
     OUTPUT_NODE = True # Indicate support for progress display
 
