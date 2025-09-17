@@ -21,7 +21,7 @@ from .minimax_tts.minimax_tts_dynamic import MiniMaxTTSDynamicNode
 from .minimax_tts.batch_audio_preview import BatchAudioPreview
 
 # 视频系统模块
-from .video_system.video_composer import VideoComposer
+from .video_system.enhanced_video_composer_v2 import EnhancedVideoComposerV2
 from .video_system.video_preview import VideoPreview
 from .video_system.story_timeline_builder import StoryTimelineBuilder
 from .video_system.story_animation_processor import StoryAnimationProcessor
@@ -49,7 +49,7 @@ NODE_CLASS_MAPPINGS = {
     "BatchAudioPreview": BatchAudioPreview,
 
     # 视频系统节点
-    "VideoComposer": VideoComposer,
+    "EnhancedVideoComposerV2": EnhancedVideoComposerV2,
     "VideoPreview": VideoPreview,
     "StoryTimelineBuilder": StoryTimelineBuilder,
     "StoryAnimationProcessor": StoryAnimationProcessor,
@@ -78,7 +78,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BatchAudioPreview": "🔊 批量音频预览",
 
     # 视频系统节点
-    "VideoComposer": "🎬 视频合成器",
+    "EnhancedVideoComposerV2": "🎵 视频合成器",
     "VideoPreview": "📹 视频预览器",
     "StoryTimelineBuilder": "⏱️ 故事时间轴构建器",
     "StoryAnimationProcessor": "🎭 故事动画处理器",
@@ -99,3 +99,4 @@ __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 print("🎉 ComfyUI Shenglin 节点集合加载完成!")
 print(f"📝 RunningHub节点: 12个 | MiniMax TTS节点: 3个 | 视频系统节点: 5个")
 print(f"🚀 总计: {len(NODE_CLASS_MAPPINGS)} 个自定义节点")
+print("🎵 新功能: 统一视频合成器 + 完整字体系统 + 音效库")
