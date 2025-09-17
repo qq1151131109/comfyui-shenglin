@@ -7,6 +7,7 @@ ComfyUI Shenglin - 圣林的ComfyUI自定义节点集合
 from .runninghub.batch_runninghub_text_to_image import RunningHubFluxTextToImage
 from .runninghub.runninghub_qwen_advanced import RunningHubQwenAdvanced
 from .runninghub.runninghub_qwen_text_to_image import RunningHubQwenTextToImage
+from .runninghub.runninghub_wan2_image_to_video import RunningHubWan2ImageToVideo
 from .runninghub.rh_execute_node import ExecuteNode
 from .runninghub.rh_settings_node import SettingsNode
 from .runninghub.rh_node_info_list import NodeInfoListNode
@@ -22,7 +23,7 @@ from .minimax_tts.batch_audio_preview import BatchAudioPreview
 
 # 视频系统模块
 from .video_system.enhanced_video_composer_v2 import EnhancedVideoComposerV2
-from .video_system.video_composer_from_videos import VideoComposerFromVideos
+from .video_system.video_composer_from_videos import AIVideoComposer
 from .video_system.video_preview import VideoPreview
 
 # 节点映射
@@ -31,6 +32,7 @@ NODE_CLASS_MAPPINGS = {
     "RunningHubFluxTextToImage": RunningHubFluxTextToImage,
     "RunningHubQwenAdvanced": RunningHubQwenAdvanced,
     "RunningHubQwenTextToImage": RunningHubQwenTextToImage,
+    "RunningHubWan2ImageToVideo": RunningHubWan2ImageToVideo,
     "RHExecuteNode": ExecuteNode,
     "RHSettingsNode": SettingsNode,
     "RHNodeInfoListNode": NodeInfoListNode,
@@ -48,7 +50,7 @@ NODE_CLASS_MAPPINGS = {
 
     # 视频系统节点
     "EnhancedVideoComposerV2": EnhancedVideoComposerV2,
-    "VideoComposerFromVideos": VideoComposerFromVideos,
+    "AIVideoComposer": AIVideoComposer,
     "VideoPreview": VideoPreview,
 }
 
@@ -58,6 +60,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RunningHubFluxTextToImage": "🎨 RunningHub Flux文生图",
     "RunningHubQwenAdvanced": "🎨 RunningHub Qwen高级版",
     "RunningHubQwenTextToImage": "🎨 RunningHub Qwen文生图",
+    "RunningHubWan2ImageToVideo": "🎬 RunningHub Wan2.2图生视频",
     "RHExecuteNode": "⚙️ RH执行节点",
     "RHSettingsNode": "🔧 RH设置节点",
     "RHNodeInfoListNode": "📋 RH节点信息列表",
@@ -75,7 +78,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # 视频系统节点
     "EnhancedVideoComposerV2": "🖼️ 视频合成器-基于图片",
-    "VideoComposerFromVideos": "🎞️ 视频合成器-基于视频",
+    "AIVideoComposer": "🎬 AI视频制作器",
     "VideoPreview": "📹 视频预览器",
 }
 
@@ -91,6 +94,6 @@ __description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成�
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 
 print("🎉 ComfyUI Shenglin 节点集合加载完成!")
-print(f"📝 RunningHub节点: 12个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个")
+print(f"📝 RunningHub节点: 13个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个")
 print(f"🚀 总计: {len(NODE_CLASS_MAPPINGS)} 个自定义节点")
-print("🎬 双轨制视频系统: 基于图片 + 基于视频 + 完整字体系统 + 音效库")
+print("🎬 完整AI视频生态: 图生视频 + 双轨制合成器 + 字体音效库")

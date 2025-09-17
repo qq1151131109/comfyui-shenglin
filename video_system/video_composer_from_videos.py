@@ -1,7 +1,9 @@
 """
-视频合成器-基于视频
-拼接多个现有视频片段，支持音频合成、字体标题等功能
-适用于从视频片段生成最终视频的场景
+AI视频制作器（原视频合成器-基于视频升级版）
+支持两种模式：
+1. 传统模式：拼接现有视频片段
+2. AI模式：图片通过RunningHub Wan2.2生成视频后拼接
+包含完整的音频合成、字体标题、音效库功能
 """
 
 import os
@@ -18,6 +20,12 @@ import folder_paths
 from typing import List, Dict, Any, Tuple, Generator, Optional
 import json
 import math
+import asyncio
+import aiohttp
+import ssl
+import io
+import base64
+import time
 
 # 导入音效管理器
 try:
@@ -29,10 +37,11 @@ except ImportError as e:
     print(f"⚠️ 音效库不可用: {e}")
     AUDIO_EFFECTS_AVAILABLE = False
 
-class VideoComposerFromVideos:
+class AIVideoComposer:
     """
-    基于视频的视频合成器
-    - 拼接多个视频片段
+    AI视频制作器
+    - 支持图片通过RunningHub Wan2.2 API生成视频
+    - 支持传统视频片段拼接
     - 音效库集成
     - 字体标题叠加
     - 音频混合和同步
@@ -57,11 +66,25 @@ class VideoComposerFromVideos:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "video_list": ("VIDEO_LIST", {
-                    "tooltip": "视频片段列表（按顺序拼接）"
+                # 工作模式选择
+                "work_mode": (["传统视频拼接", "AI图生视频"], {
+                    "default": "AI图生视频",
+                    "tooltip": "选择工作模式"
                 }),
+
                 "audio_list": ("AUDIO_LIST", {
                     "tooltip": "对应的音频列表"
+                }),
+
+                # AI模式专用参数
+                "api_key": ("STRING", {
+                    "default": "",
+                    "tooltip": "RunningHub API密钥（AI模式必需）"
+                }),
+                "scene_video_prompts": ("STRING", {
+                    "multiline": True,
+                    "default": "场景1：美丽的风景慢慢展开\n场景2：人物在画面中移动",
+                    "tooltip": "场景图生视频提示词，每行对应一个场景图片"
                 }),
 
                 # 基础参数
@@ -188,35 +211,135 @@ class VideoComposerFromVideos:
                     "default": "自动选择",
                     "tooltip": "标题字体"
                 }),
+
+                # AI模式参数
+                "steps": ("INT", {
+                    "default": 6,
+                    "min": 4,
+                    "max": 20,
+                    "step": 1,
+                    "tooltip": "AI视频生成推理步数"
+                }),
+                "cfg_scale": ("FLOAT", {
+                    "default": 7.5,
+                    "min": 1.0,
+                    "max": 20.0,
+                    "step": 0.5,
+                    "tooltip": "CFG缩放系数"
+                }),
+                "motion_strength": ("FLOAT", {
+                    "default": 0.8,
+                    "min": 0.1,
+                    "max": 1.0,
+                    "step": 0.1,
+                    "tooltip": "运动强度（AI模式）"
+                }),
+                "max_concurrent": ("INT", {
+                    "default": 2,
+                    "min": 1,
+                    "max": 5,
+                    "tooltip": "AI生成最大并发数"
+                }),
+            },
+            "optional": {
+                # 传统模式：现有视频片段
+                "video_list": ("VIDEO_LIST", {
+                    "tooltip": "传统模式：现有视频片段列表"
+                }),
+
+                # AI模式：图片输入
+                "images": ("IMAGE", {
+                    "tooltip": "AI模式：场景图片列表（不含主角图）"
+                }),
+                "character_image": ("IMAGE", {
+                    "tooltip": "AI模式：主角图片（可选）"
+                }),
+                "character_video_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "主角：人物在画面中自然移动，表情生动",
+                    "tooltip": "主角图生视频提示词（单独配置）"
+                }),
+                "negative_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "低质量, 模糊, 变形, 静态",
+                    "tooltip": "负面提示词（AI模式）"
+                }),
+                "enable_character_intro": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "启用主角开场介绍"
+                }),
             }
         }
 
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("video_path", "info")
-    FUNCTION = "compose_video_from_videos"
+    FUNCTION = "create_ai_video"
     CATEGORY = "🎥 Shenglin Video System"
 
-    def compose_video_from_videos(self, video_list, audio_list, fps=30, width=720, height=1280,
-                                output_format="mp4", quality="medium", transition_type="fade",
-                                transition_duration=0.5, enable_audio_effects=True,
-                                opening_sound_choice="自动选择", background_music_choice="自动选择",
-                                ambient_sound_choice="无", background_music_volume=0.3,
-                                opening_sound_volume=0.8, ambient_sound_volume=0.5, voice_volume=1.0,
-                                title_text="", enable_title=False, title_duration=3.0,
-                                title_fontsize=80, title_color="white", title_font="自动选择"):
+    def create_ai_video(self, work_mode, audio_list, api_key, scene_video_prompts, fps=30,
+                       width=720, height=1280, output_format="mp4", quality="medium",
+                       transition_type="fade", transition_duration=0.5, enable_audio_effects=True,
+                       opening_sound_choice="自动选择", background_music_choice="自动选择",
+                       ambient_sound_choice="无", background_music_volume=0.3,
+                       opening_sound_volume=0.8, ambient_sound_volume=0.5, voice_volume=1.0,
+                       title_text="", enable_title=False, title_duration=3.0,
+                       title_fontsize=80, title_color="white", title_font="自动选择",
+                       steps=6, cfg_scale=7.5, motion_strength=0.8, max_concurrent=2,
+                       video_list=None, images=None, character_image=None,
+                       character_video_prompt="主角：人物在画面中自然移动，表情生动",
+                       negative_prompt="低质量, 模糊, 变形, 静态", enable_character_intro=True):
         """
-        基于视频片段的视频合成
+        AI视频制作器主函数
+        支持传统视频拼接和AI图生视频两种模式
         """
         try:
-            print("🎬 开始基于视频的视频合成...")
-
-            # 输入验证
-            if not video_list or len(video_list) == 0:
-                return ("", "错误: 未提供视频片段")
+            print(f"🎬 开始{work_mode}...")
 
             if not audio_list or len(audio_list) == 0:
-                return ("", "错误: 未提供音频")
+                return ("", "错误: 音频列表为空")
 
+            # 根据工作模式选择处理流程
+            if work_mode == "AI图生视频":
+                return self._handle_ai_mode(
+                    audio_list, api_key, scene_video_prompts, fps, width, height,
+                    output_format, quality, transition_type, transition_duration,
+                    enable_audio_effects, opening_sound_choice, background_music_choice,
+                    ambient_sound_choice, background_music_volume, opening_sound_volume,
+                    ambient_sound_volume, voice_volume, title_text, enable_title,
+                    title_duration, title_fontsize, title_color, title_font,
+                    steps, cfg_scale, motion_strength, max_concurrent,
+                    images, character_image, character_video_prompt,
+                    negative_prompt, enable_character_intro
+                )
+            else:
+                # 传统模式：基于现有视频片段
+                if not video_list or len(video_list) == 0:
+                    return ("", "错误: 传统模式需要提供视频片段列表")
+
+                return self._handle_traditional_mode(
+                    video_list, audio_list, fps, width, height, output_format, quality,
+                    transition_type, transition_duration, enable_audio_effects,
+                    opening_sound_choice, background_music_choice, ambient_sound_choice,
+                    background_music_volume, opening_sound_volume, ambient_sound_volume,
+                    voice_volume, title_text, enable_title, title_duration,
+                    title_fontsize, title_color, title_font
+                )
+
+        except Exception as e:
+            error_msg = f"AI视频制作失败: {str(e)}"
+            print(f"❌ {error_msg}")
+            import traceback
+            traceback.print_exc()
+            return ("", error_msg)
+
+    def _handle_traditional_mode(self, video_list, audio_list, fps, width, height,
+                               output_format, quality, transition_type, transition_duration,
+                               enable_audio_effects, opening_sound_choice, background_music_choice,
+                               ambient_sound_choice, background_music_volume, opening_sound_volume,
+                               ambient_sound_volume, voice_volume, title_text, enable_title,
+                               title_duration, title_fontsize, title_color, title_font):
+        """传统模式：基于现有视频片段的合成"""
+        try:
             print(f"📋 输入信息: {len(video_list)}个视频片段, {len(audio_list)}个音频段")
 
             # 计算音频时长
@@ -286,6 +409,94 @@ class VideoComposerFromVideos:
         except Exception as e:
             error_msg = f"基于视频的合成失败: {str(e)}"
             print(f"❌ {error_msg}")
+            return ("", error_msg)
+
+    def _handle_ai_mode(self, audio_list, api_key, scene_video_prompts, fps, width, height,
+                       output_format, quality, transition_type, transition_duration,
+                       enable_audio_effects, opening_sound_choice, background_music_choice,
+                       ambient_sound_choice, background_music_volume, opening_sound_volume,
+                       ambient_sound_volume, voice_volume, title_text, enable_title,
+                       title_duration, title_fontsize, title_color, title_font,
+                       steps, cfg_scale, motion_strength, max_concurrent,
+                       images, character_image, character_video_prompt,
+                       negative_prompt, enable_character_intro):
+        """AI模式：图片通过RunningHub Wan2.2生成视频后拼接"""
+        try:
+            if not api_key.strip():
+                return ("", "错误: AI模式需要提供RunningHub API密钥")
+
+            # 解析场景视频提示词
+            scene_prompts = [line.strip() for line in scene_video_prompts.strip().split('\n') if line.strip()]
+            if not scene_prompts:
+                return ("", "错误: 场景视频提示词不能为空")
+
+            print(f"🎬 AI模式: {len(scene_prompts)}个场景提示词, {len(audio_list)}个音频")
+
+            # 构建输入图片列表（主角图+场景图）
+            all_images = []
+            all_prompts = []
+
+            # 处理主角图（如果有）
+            if character_image is not None and enable_character_intro:
+                if len(character_image.shape) == 4:
+                    # 批量图片，取第一张作为主角
+                    char_img = character_image[0]
+                else:
+                    char_img = character_image
+                all_images.append(char_img)
+                all_prompts.append(character_video_prompt.strip())
+                print("👤 添加主角图片")
+
+            # 处理场景图片
+            if images is not None:
+                if len(images.shape) == 4:
+                    # 批量图片
+                    scene_count = min(len(scene_prompts), images.shape[0])
+                    for i in range(scene_count):
+                        all_images.append(images[i])
+                        prompt_idx = min(i, len(scene_prompts) - 1)
+                        all_prompts.append(scene_prompts[prompt_idx])
+                    print(f"🖼️ 添加 {scene_count} 张场景图片")
+                else:
+                    # 单张场景图片
+                    all_images.append(images)
+                    all_prompts.append(scene_prompts[0] if scene_prompts else "场景视频")
+                    print("🖼️ 添加 1 张场景图片")
+
+            if not all_images:
+                return ("", "错误: 未提供任何图片（请提供场景图片或主角图片）")
+
+            # 确保音频和图片数量匹配
+            if len(all_images) != len(audio_list):
+                return ("", f"错误: 图片数量({len(all_images)})与音频数量({len(audio_list)})不匹配")
+
+            # 调用RunningHub Wan2.2 API生成视频
+            print("🚀 开始调用RunningHub Wan2.2 API生成视频...")
+            video_paths = self._generate_videos_with_runninghub(
+                all_images, all_prompts, audio_list, api_key, steps, cfg_scale,
+                motion_strength, max_concurrent, negative_prompt
+            )
+
+            if not video_paths or not any(video_paths):
+                return ("", "错误: RunningHub API视频生成失败")
+
+            print(f"✅ 成功生成 {len([p for p in video_paths if p])} 个视频片段")
+
+            # 使用生成的视频进行后续合成（调用传统模式逻辑）
+            return self._handle_traditional_mode(
+                video_paths, audio_list, fps, width, height, output_format, quality,
+                transition_type, transition_duration, enable_audio_effects,
+                opening_sound_choice, background_music_choice, ambient_sound_choice,
+                background_music_volume, opening_sound_volume, ambient_sound_volume,
+                voice_volume, title_text, enable_title, title_duration,
+                title_fontsize, title_color, title_font
+            )
+
+        except Exception as e:
+            error_msg = f"AI模式处理失败: {str(e)}"
+            print(f"❌ {error_msg}")
+            import traceback
+            traceback.print_exc()
             return ("", error_msg)
 
     def _concatenate_videos(self, video_list, transition_type, transition_duration, fps):
@@ -547,11 +758,236 @@ class VideoComposerFromVideos:
                 except:
                     pass
 
+    def _generate_videos_with_runninghub(self, images, prompts, audio_list, api_key,
+                                       steps, cfg_scale, motion_strength, max_concurrent, negative_prompt):
+        """使用RunningHub Wan2.2 API生成视频"""
+        try:
+            # 获取音频时长列表
+            audio_durations = self._get_audio_durations(audio_list)
+
+            # 转换图片格式
+            image_list = []
+            for img_tensor in images:
+                if isinstance(img_tensor, torch.Tensor):
+                    img_array = img_tensor.cpu().numpy()
+                    if img_array.max() <= 1.0:
+                        img_array = (img_array * 255).astype(np.uint8)
+                    image_list.append(Image.fromarray(img_array))
+                else:
+                    image_list.append(img_tensor)
+
+            print(f"🎬 准备生成 {len(image_list)} 个视频片段")
+
+            # 异步调用API
+            try:
+                loop = asyncio.get_running_loop()
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self._batch_generate_videos_async(
+                        image_list, prompts, audio_durations, api_key, steps, cfg_scale,
+                        motion_strength, max_concurrent, negative_prompt
+                    ))
+                    results = future.result()
+            except RuntimeError as e:
+                if "There is no current event loop" in str(e):
+                    results = asyncio.run(
+                        self._batch_generate_videos_async(
+                            image_list, prompts, audio_durations, api_key, steps, cfg_scale,
+                            motion_strength, max_concurrent, negative_prompt
+                        )
+                    )
+                else:
+                    loop = asyncio.get_event_loop()
+                    results = loop.run_until_complete(
+                        self._batch_generate_videos_async(
+                            image_list, prompts, audio_durations, api_key, steps, cfg_scale,
+                            motion_strength, max_concurrent, negative_prompt
+                        )
+                    )
+
+            # 提取视频路径
+            video_paths = []
+            for result in results:
+                if result and result.get('success'):
+                    video_paths.append(result.get('video_path', ''))
+                else:
+                    video_paths.append('')
+
+            return video_paths
+
+        except Exception as e:
+            print(f"❌ RunningHub API调用失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def _get_audio_durations(self, audio_list):
+        """获取音频时长列表"""
+        durations = []
+        for audio_dict in audio_list:
+            waveform = audio_dict["waveform"]
+            if len(waveform.shape) == 3:
+                waveform = waveform[0]
+            sample_rate = audio_dict["sample_rate"]
+            duration = waveform.shape[1] / sample_rate
+            durations.append(float(duration))
+        return durations
+
+    async def _batch_generate_videos_async(self, images, prompts, audio_durations, api_key,
+                                         steps, cfg_scale, motion_strength, max_concurrent, negative_prompt):
+        """异步批量生成视频"""
+        semaphore = asyncio.Semaphore(max_concurrent)
+        tasks = []
+        fps = 16  # Wan2.2固定帧率
+
+        for i, (image, prompt, duration) in enumerate(zip(images, prompts, audio_durations)):
+            frames = max(25, min(200, int(duration * fps)))  # 根据音频时长计算帧数
+
+            task = asyncio.create_task(
+                self._generate_single_video_async(
+                    semaphore, i, image, prompt, frames, api_key, steps,
+                    cfg_scale, motion_strength, negative_prompt
+                )
+            )
+            tasks.append(task)
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        return results
+
+    async def _generate_single_video_async(self, semaphore, index, image, prompt, frames,
+                                         api_key, steps, cfg_scale, motion_strength, negative_prompt):
+        """异步生成单个视频"""
+        async with semaphore:
+            try:
+                print(f"🎬 生成视频 {index+1}: {frames}帧, {prompt[:30]}...")
+
+                # 转换图片为base64
+                buffer = io.BytesIO()
+                image.save(buffer, format='PNG')
+                image_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+                # 生成随机种子
+                seed = int(time.time() * 1000) % 2147483647
+
+                # 构建API请求参数
+                workflow_id = "1968308523518046210"
+                node_list = [
+                    {
+                        "nodeId": 1,
+                        "type": "input_image",
+                        "data": {
+                            "image": image_b64,
+                            "format": "png"
+                        }
+                    },
+                    {
+                        "nodeId": 2,
+                        "type": "text_prompt",
+                        "data": {
+                            "text": prompt
+                        }
+                    },
+                    {
+                        "nodeId": 3,
+                        "type": "video_params",
+                        "data": {
+                            "frames": frames,
+                            "steps": steps,
+                            "cfg_scale": cfg_scale,
+                            "seed": seed,
+                            "motion_strength": motion_strength
+                        }
+                    }
+                ]
+
+                if negative_prompt.strip():
+                    node_list.append({
+                        "nodeId": 4,
+                        "type": "negative_prompt",
+                        "data": {
+                            "text": negative_prompt.strip()
+                        }
+                    })
+
+                payload = {
+                    "apiKey": api_key,
+                    "workflowId": workflow_id,
+                    "nodeInfoList": node_list
+                }
+
+                # 发送API请求
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+
+                connector = aiohttp.TCPConnector(ssl=ssl_context)
+                timeout = aiohttp.ClientTimeout(total=1200)
+
+                async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+                    async with session.post(
+                        'https://api.runninghub.cn/api/v1/workflows/run',
+                        headers={
+                            'Content-Type': 'application/json',
+                            'User-Agent': 'ComfyUI-AIVideoComposer/1.0'
+                        },
+                        json=payload
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            raise Exception(f"API请求失败: {response.status} - {error_text}")
+
+                        result = await response.json()
+                        if not result.get('success', False):
+                            error_msg = result.get('message', '未知错误')
+                            raise Exception(f"视频生成失败: {error_msg}")
+
+                        # 获取视频URL并下载
+                        video_data = result.get('data', {})
+                        video_url = video_data.get('videoUrl') or video_data.get('output_video')
+
+                        if not video_url:
+                            raise Exception("视频URL为空")
+
+                        video_path = await self._download_video_async(session, video_url, prompt, index)
+
+                        print(f"✅ 视频 {index+1} 生成成功: {video_path}")
+                        return {
+                            "success": True,
+                            "video_path": video_path,
+                            "frames": frames,
+                            "prompt": prompt
+                        }
+
+            except Exception as e:
+                print(f"❌ 视频 {index+1} 生成失败: {e}")
+                return {"success": False, "error": str(e)}
+
+    async def _download_video_async(self, session, video_url, prompt, index):
+        """异步下载视频"""
+        try:
+            safe_prompt = "".join(c for c in prompt if c.isalnum() or c in (' ', '-', '_'))[:30]
+            timestamp = int(time.time())
+            filename = f"ai_video_{index+1}_{timestamp}_{safe_prompt[:10]}.mp4"
+            video_path = os.path.join(self.output_dir, filename)
+
+            async with session.get(video_url) as response:
+                if response.status == 200:
+                    with open(video_path, 'wb') as f:
+                        async for chunk in response.content.iter_chunked(8192):
+                            f.write(chunk)
+                    return video_path
+                else:
+                    raise Exception(f"下载失败: {response.status}")
+
+        except Exception as e:
+            print(f"❌ 视频下载失败: {e}")
+            return video_url  # 返回原始URL作为备选
+
 # 节点注册
 NODE_CLASS_MAPPINGS = {
-    "VideoComposerFromVideos": VideoComposerFromVideos
+    "AIVideoComposer": AIVideoComposer
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "VideoComposerFromVideos": "🎞️ 视频合成器-基于视频"
+    "AIVideoComposer": "🎬 AI视频制作器"
 }
