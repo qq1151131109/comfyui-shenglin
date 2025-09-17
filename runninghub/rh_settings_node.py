@@ -14,7 +14,7 @@ class SettingsNode:
         }
 
     RETURN_TYPES = ("STRUCT",)
-    CATEGORY = "⚙️ Shenglin/RunningHub/Tools"
+    CATEGORY = "🔥 Shenglin/工具"
     FUNCTION = "process"  # Add FUNCTION attribute pointing to process method
 
     def process(self,base_url,apiKey, workflowId_webappId):

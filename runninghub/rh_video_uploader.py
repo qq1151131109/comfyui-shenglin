@@ -34,7 +34,7 @@ class RH_VideoUploader:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("filename",)
     FUNCTION = "upload_and_get_filename" # Renamed function to reflect action
-    CATEGORY = "⚙️ Shenglin/RunningHub/Tools" # Or your preferred category
+    CATEGORY = "🔥 Shenglin/工具" # Or your preferred category
     OUTPUT_NODE = False # This node outputs data, not a final image/video display
 
     def upload_and_get_filename(self, apiConfig, video):

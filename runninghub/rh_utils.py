@@ -46,7 +46,7 @@ class AnyToStringNode:
         }
 
     RETURN_TYPES = ("STRING",)  # Output type is string
-    CATEGORY = "⚙️ Shenglin/RunningHub/Tools"      # Category name is RunningHub
+    CATEGORY = "🔥 Shenglin/工具"      # Category name is RunningHub
     FUNCTION = "process"         # The processing function is the 'process' method
 
     def process(self, anything):
@@ -86,7 +86,7 @@ class RH_Extract_Image_From_List():
 
     OUTPUT_NODE = False
 
-    CATEGORY = "⚙️ Shenglin/RunningHub/Tools"
+    CATEGORY = "🔥 Shenglin/工具"
 
     def rh_extract_image(self, images, image_index):
         out = images[int(image_index)].unsqueeze(0)
@@ -112,7 +112,7 @@ class RH_Batch_Images_From_List():
 
     OUTPUT_NODE = False
 
-    CATEGORY = "⚙️ Shenglin/RunningHub/Tools"
+    CATEGORY = "🔥 Shenglin/工具"
 
     def rh_batch_images(self, images, image_indices):
         image_indices = image_indices.replace(" ", "")

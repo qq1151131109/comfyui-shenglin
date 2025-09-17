@@ -93,7 +93,7 @@ class RunningHubQwenAdvanced:
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("images", "info")
     FUNCTION = "generate_advanced_images"
-    CATEGORY = "🎨 Shenglin/RunningHub"
+    CATEGORY = "🔥 Shenglin/图像生成"
     DESCRIPTION = "使用RunningHub Qwen模型高级版本生成图片，支持自定义尺寸"
 
     def generate_advanced_images(self, prompts: str, api_key: str, width: int, height: int,

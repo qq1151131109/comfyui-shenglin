@@ -151,7 +151,7 @@ class MiniMaxTTSDynamicNode:
     RETURN_TYPES = ("AUDIO", "STRING", "STRING", "STRING", "LIST")
     RETURN_NAMES = ("audio", "file_path", "image_prompt", "video_prompt", "available_voices")
     FUNCTION = "generate_tts"
-    CATEGORY = "🎵 Shenglin/Audio"
+    CATEGORY = "🔥 Shenglin/音频处理"
     
     def generate_tts(
         self,

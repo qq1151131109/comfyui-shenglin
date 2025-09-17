@@ -22,7 +22,7 @@ class ImageUploaderNode:
 
     RETURN_TYPES = ("STRING",)  # Output type is string
     RETURN_NAMES = ("filename",)  # Output name is filename
-    CATEGORY = "⚙️ Shenglin/RunningHub/Tools"  # Node category
+    CATEGORY = "🔥 Shenglin/工具"  # Node category
     FUNCTION = "process"  # Specify processing method
 
     def process(self, image: torch.Tensor, apiConfig: dict) -> tuple:

@@ -103,7 +103,7 @@ class RunningHubFluxTextToImage:
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("images", "info")
     FUNCTION = "generate_batch_images"
-    CATEGORY = "🎨 Shenglin/RunningHub"
+    CATEGORY = "🔥 Shenglin/图像生成"
     DESCRIPTION = "使用RunningHub Flux模型批量生成图片"
 
     def generate_batch_images(self, prompts: str, api_key: str, workflow_id: str,

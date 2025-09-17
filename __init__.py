@@ -22,6 +22,7 @@ from .minimax_tts.batch_audio_preview import BatchAudioPreview
 
 # 视频系统模块
 from .video_system.enhanced_video_composer_v2 import EnhancedVideoComposerV2
+from .video_system.video_composer_from_videos import VideoComposerFromVideos
 from .video_system.video_preview import VideoPreview
 
 # 节点映射
@@ -47,6 +48,7 @@ NODE_CLASS_MAPPINGS = {
 
     # 视频系统节点
     "EnhancedVideoComposerV2": EnhancedVideoComposerV2,
+    "VideoComposerFromVideos": VideoComposerFromVideos,
     "VideoPreview": VideoPreview,
 }
 
@@ -72,7 +74,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BatchAudioPreview": "🔊 批量音频预览",
 
     # 视频系统节点
-    "EnhancedVideoComposerV2": "🎵 视频合成器",
+    "EnhancedVideoComposerV2": "🖼️ 视频合成器-基于图片",
+    "VideoComposerFromVideos": "🎞️ 视频合成器-基于视频",
     "VideoPreview": "📹 视频预览器",
 }
 
@@ -88,6 +91,6 @@ __description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成�
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 
 print("🎉 ComfyUI Shenglin 节点集合加载完成!")
-print(f"📝 RunningHub节点: 12个 | MiniMax TTS节点: 3个 | 视频系统节点: 2个")
+print(f"📝 RunningHub节点: 12个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个")
 print(f"🚀 总计: {len(NODE_CLASS_MAPPINGS)} 个自定义节点")
-print("🎵 核心功能: 统一视频合成器 + 完整字体系统 + 音效库")
+print("🎬 双轨制视频系统: 基于图片 + 基于视频 + 完整字体系统 + 音效库")

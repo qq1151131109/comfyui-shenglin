@@ -1,0 +1,1131 @@
+"""
+视频合成器节点 - 完整版
+基于原Coze工作流设计，集成动画效果和转场处理
+将音频列表和图片列表合成为具有专业效果的MP4视频
+"""
+
+import os
+import tempfile
+import subprocess
+import shutil
+import torch
+import torchaudio
+import numpy as np
+from PIL import Image, ImageEnhance, ImageFilter
+import cv2
+import folder_paths
+from typing import List, Dict, Any, Tuple, Generator
+import json
+import math
+
+class VideoComposer:
+    """
+    视频合成器 - 基础音视频同步合成
+
+    将音频列表和图片batch合成为时间同步的视频
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "audio_list": ("*", {"tooltip": "音频列表，每个音频对应一个场景"}),
+                "images": ("IMAGE", {"tooltip": "图片batch，每张图片对应一个场景"}),
+                "fps": ("INT", {
+                    "default": 30,
+                    "min": 15,
+                    "max": 60,
+                    "step": 1,
+                    "tooltip": "视频帧率"
+                }),
+                "width": ("INT", {
+                    "default": 720,
+                    "min": 480,
+                    "max": 1920,
+                    "step": 8,
+                    "tooltip": "视频宽度"
+                }),
+                "height": ("INT", {
+                    "default": 1280,
+                    "min": 720,
+                    "max": 2560,
+                    "step": 8,
+                    "tooltip": "视频高度"
+                })
+            },
+            "optional": {
+                "output_format": (["mp4", "avi", "mov"], {
+                    "default": "mp4",
+                    "tooltip": "输出视频格式"
+                }),
+                "quality": (["high", "medium", "low"], {
+                    "default": "medium",
+                    "tooltip": "视频质量"
+                }),
+                "animation_type": (["coze_zoom", "fade", "slide", "none"], {
+                    "default": "coze_zoom",
+                    "tooltip": "动画效果类型"
+                }),
+                "transition_duration": ("FLOAT", {
+                    "default": 0.5,
+                    "min": 0.0,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "tooltip": "转场时长（秒）"
+                }),
+                # 主角图相关参数
+                "character_image": ("IMAGE", {
+                    "tooltip": "主角图片，用于首帧特效（可选）"
+                }),
+                "enable_character_intro": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "启用主角开场动画"
+                }),
+                "char_intro_scale_start": ("FLOAT", {
+                    "default": 2.0,
+                    "min": 0.5,
+                    "max": 5.0,
+                    "step": 0.1,
+                    "tooltip": "主角图开始缩放比例"
+                }),
+                "char_intro_scale_mid": ("FLOAT", {
+                    "default": 1.2,
+                    "min": 0.5,
+                    "max": 3.0,
+                    "step": 0.1,
+                    "tooltip": "主角图中间缩放比例"
+                }),
+                "char_intro_scale_end": ("FLOAT", {
+                    "default": 1.0,
+                    "min": 0.5,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "tooltip": "主角图结束缩放比例"
+                }),
+                "char_intro_mid_timing": ("FLOAT", {
+                    "default": 0.533,
+                    "min": 0.1,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "tooltip": "主角图中间关键帧时间点（秒）"
+                }),
+                # 标题显示参数
+                "title_text": ("STRING", {
+                    "default": "",
+                    "tooltip": "视频标题文字（2字主题）"
+                }),
+                "enable_title": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "启用标题显示"
+                }),
+                "title_duration": ("FLOAT", {
+                    "default": 3.0,
+                    "min": 1.0,
+                    "max": 10.0,
+                    "step": 0.5,
+                    "tooltip": "标题显示时长（秒）"
+                }),
+                "title_fontsize": ("INT", {
+                    "default": 80,
+                    "min": 30,
+                    "max": 300,
+                    "step": 5,
+                    "tooltip": "标题字体大小"
+                }),
+                "title_color": (["white", "black", "red", "gold", "blue"], {
+                    "default": "white",
+                    "tooltip": "标题颜色"
+                }),
+                "title_font": (["自动选择", "Noto无衬线-常规", "Noto无衬线-粗体", "Noto衬线体", "文泉驿正黑", "Droid黑体", "Arial风格", "Helvetica风格", "Times风格"], {
+                    "default": "自动选择",
+                    "tooltip": "标题字体选择（支持中英文）"
+                })
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("video_path", "info")
+    FUNCTION = "compose_video"
+    CATEGORY = "🔥 Shenglin/视频处理"
+    DESCRIPTION = "将音频列表和图片合成为同步视频"
+
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+    def compose_video(self, audio_list, images, fps=30, width=720, height=1280,
+                     output_format="mp4", quality="medium", animation_type="coze_zoom",
+                     transition_duration=0.5, character_image=None, enable_character_intro=True,
+                     char_intro_scale_start=2.0, char_intro_scale_mid=1.2, char_intro_scale_end=1.0,
+                     char_intro_mid_timing=0.533, title_text="", enable_title=False,
+                     title_duration=3.0, title_fontsize=80, title_color="white", title_font="自动选择"):
+        """
+        合成视频的主函数
+        """
+        try:
+            # 检查输入
+            if not isinstance(audio_list, list):
+                raise ValueError("audio_list必须是列表类型")
+
+            if len(audio_list) == 0:
+                raise ValueError("音频列表不能为空")
+
+            # 检查音频和图像的对应关系
+            if enable_character_intro and character_image is not None:
+                # 有主角图像时：音频数量 = 场景图像数量 + 1（主角图像占用第一个音频）
+                expected_audio_count = images.shape[0] + 1
+                if len(audio_list) != expected_audio_count:
+                    print(f"⚠️ 警告：有主角图像时，音频数量({len(audio_list)}) 应该等于 场景图像数量({images.shape[0]}) + 1")
+                    if len(audio_list) < expected_audio_count:
+                        print(f"❌ 音频数量不足，需要 {expected_audio_count} 个音频")
+                        raise ValueError(f"音频数量不足：需要{expected_audio_count}个音频，实际{len(audio_list)}个")
+                    else:
+                        # 截取到正确数量
+                        audio_list = audio_list[:expected_audio_count]
+                        print(f"✂️ 截取前{expected_audio_count}个音频")
+            else:
+                # 无主角图像时：音频数量 = 场景图像数量
+                if images.shape[0] != len(audio_list):
+                    print(f"⚠️ 警告：无主角图像时，图片数量({images.shape[0]}) 与音频数量({len(audio_list)}) 不匹配")
+                    # 调整到最小长度
+                    min_count = min(images.shape[0], len(audio_list))
+                    images = images[:min_count]
+                    audio_list = audio_list[:min_count]
+
+            print(f"🎬 开始视频合成：{len(audio_list)} 个场景，分辨率 {width}x{height}")
+
+            # 1. 分析音频时长
+            audio_durations = []
+            total_duration = 0
+
+            for i, audio_dict in enumerate(audio_list):
+                if isinstance(audio_dict, dict) and "waveform" in audio_dict:
+                    waveform = audio_dict["waveform"]
+                    sample_rate = audio_dict["sample_rate"]
+
+                    # 计算时长（秒）
+                    if len(waveform.shape) == 3:
+                        waveform = waveform[0]  # 移除batch维度
+
+                    duration = waveform.shape[1] / sample_rate
+                    audio_durations.append(duration)
+                    total_duration += duration
+                    print(f"🎵 场景 {i+1} 音频时长: {duration:.2f}秒")
+                else:
+                    raise ValueError(f"音频 {i} 格式不正确，需要包含waveform和sample_rate")
+
+            # 2. 拼接所有音频
+            print("🔊 拼接音频...")
+            combined_audio_path = self._combine_audio(audio_list)
+
+            # 3. 计算总帧数
+            total_frames = sum(int(duration * fps) for duration in audio_durations)
+            transition_frames_total = int(transition_duration * fps) * (len(images) - 1) if transition_duration > 0 else 0
+            total_frames += transition_frames_total
+
+            print(f"📊 预计生成 {total_frames} 帧 (内存优化模式)")
+
+            # 4. 合成最终视频（使用流式处理）
+            print("🎬 开始流式视频合成...")
+            output_filename = f"story_video_{self._get_timestamp()}.{output_format}"
+            video_path = os.path.join(self.output_dir, output_filename)
+
+            # 创建帧生成器（包含主角图处理）
+            frame_generator = self._create_animated_frame_generator(
+                images, audio_durations, fps, width, height,
+                animation_type, transition_duration, character_image, enable_character_intro,
+                char_intro_scale_start, char_intro_scale_mid, char_intro_scale_end, char_intro_mid_timing
+            )
+
+            # 构建标题配置
+            title_config = {
+                'enable_title': enable_title and title_text.strip(),
+                'title_text': title_text.strip(),
+                'fontsize': title_fontsize,
+                'color': title_color,
+                'duration': title_duration,
+                'font': title_font
+            } if enable_title and title_text.strip() else None
+
+            self._merge_video_audio_streaming(
+                frame_generator, combined_audio_path, video_path, fps, quality, total_frames, title_config
+            )
+
+            # 5. 清理临时文件
+            try:
+                os.unlink(combined_audio_path)
+            except:
+                pass
+
+            info = (f"视频合成完成\\n"
+                   f"场景数: {len(audio_list)}\\n"
+                   f"总时长: {total_duration:.2f}秒\\n"
+                   f"分辨率: {width}x{height}\\n"
+                   f"帧率: {fps}fps\\n"
+                   f"输出: {output_filename}")
+
+            print(f"✅ 视频合成完成: {video_path}")
+            return (video_path, info)
+
+        except Exception as e:
+            error_msg = f"视频合成失败: {str(e)}"
+            print(f"❌ {error_msg}")
+            return ("", error_msg)
+
+    def _combine_audio(self, audio_list):
+        """拼接所有音频"""
+        waveforms = []
+        sample_rate = None
+
+        for audio_dict in audio_list:
+            waveform = audio_dict["waveform"]
+            if len(waveform.shape) == 3:
+                waveform = waveform[0]  # 移除batch维度
+
+            waveforms.append(waveform)
+            sample_rate = audio_dict["sample_rate"]
+
+        # 拼接音频
+        combined_waveform = torch.cat(waveforms, dim=1)
+
+        # 保存为临时文件
+        temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        torchaudio.save(temp_file.name, combined_waveform, sample_rate)
+        temp_file.close()
+
+        return temp_file.name
+
+    def _create_animated_video_frames(self, images, durations, fps, width, height,
+                                    animation_type, transition_duration):
+        """
+        创建带动画效果的视频帧 - 基于原Coze工作流设计
+
+        支持的动画类型：
+        - coze_zoom: 原Coze工作流的缩放动画（奇偶交替方向）
+        - fade: 淡入淡出效果
+        - slide: 滑动效果
+        - none: 无动画
+        """
+        all_frames = []
+        transition_frames = int(transition_duration * fps) if transition_duration > 0 else 0
+
+        for i, (image_tensor, duration) in enumerate(zip(images, durations)):
+            # 转换tensor到PIL图片
+            image_np = (image_tensor.cpu().numpy() * 255).astype(np.uint8)
+            pil_image = Image.fromarray(image_np)
+
+            # 调整图片尺寸到略大于目标，用于缩放动画
+            if animation_type == "coze_zoom":
+                # Coze风格：图片稍大一些，用于缩放
+                scale_factor = 1.3
+                scaled_width = int(width * scale_factor)
+                scaled_height = int(height * scale_factor)
+                pil_image = pil_image.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+            else:
+                pil_image = pil_image.resize((width, height), Image.Resampling.LANCZOS)
+
+            # 计算需要的帧数
+            total_frames = int(duration * fps)
+            content_frames = total_frames - (transition_frames if i < len(images) - 1 else 0)
+
+            print(f"📹 场景 {i+1}: 生成 {total_frames} 帧 ({duration:.2f}秒)")
+            print(f"   内容帧: {content_frames}, 转场帧: {transition_frames if i < len(images) - 1 else 0}")
+
+            # 生成动画帧
+            scene_frames = self._generate_scene_animation_frames(
+                pil_image, content_frames, width, height, animation_type, i
+            )
+            all_frames.extend(scene_frames)
+
+            # 添加转场效果（除了最后一个场景）
+            if i < len(images) - 1 and transition_frames > 0:
+                next_image_tensor = images[i + 1]
+                next_image_np = (next_image_tensor.cpu().numpy() * 255).astype(np.uint8)
+                next_pil_image = Image.fromarray(next_image_np)
+
+                if animation_type == "coze_zoom":
+                    next_pil_image = next_pil_image.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+                else:
+                    next_pil_image = next_pil_image.resize((width, height), Image.Resampling.LANCZOS)
+
+                transition_frames_list = self._generate_transition_frames(
+                    pil_image, next_pil_image, transition_frames, width, height, animation_type
+                )
+                all_frames.extend(transition_frames_list)
+
+        return all_frames
+
+    def _create_animated_frame_generator(self, images, durations, fps, width, height,
+                                       animation_type, transition_duration, character_image=None,
+                                       enable_character_intro=False, char_intro_scale_start=2.0,
+                                       char_intro_scale_mid=1.2, char_intro_scale_end=1.0,
+                                       char_intro_mid_timing=0.533) -> Generator[np.ndarray, None, None]:
+        """
+        创建带动画效果的帧生成器（内存优化版本）
+
+        使用Generator模式，每次只生成一帧，避免内存溢出
+        """
+        transition_frames = int(transition_duration * fps) if transition_duration > 0 else 0
+
+        # 处理主角图（如果启用）
+        character_pil = None
+        print(f"👤 主角图像状态检查:")
+        print(f"   - enable_character_intro: {enable_character_intro}")
+        print(f"   - character_image is not None: {character_image is not None}")
+
+        if enable_character_intro and character_image is not None:
+            print("✅ 启用主角图像，准备主角开场动画...")
+            char_np = (character_image[0].cpu().numpy() * 255).astype(np.uint8)
+            character_pil = Image.fromarray(char_np)
+            print(f"   - 原始主角图尺寸: {character_pil.size}")
+            # 主角图调整到合适尺寸
+            if animation_type == "coze_zoom":
+                scale_factor = 1.3
+                scaled_width = int(width * scale_factor)
+                scaled_height = int(height * scale_factor)
+                character_pil = character_pil.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+                print(f"   - 调整后主角图尺寸: {character_pil.size} (缩放因子: {scale_factor})")
+            else:
+                character_pil = character_pil.resize((width, height), Image.Resampling.LANCZOS)
+                print(f"   - 调整后主角图尺寸: {character_pil.size}")
+        elif enable_character_intro and character_image is None:
+            print("⚠️ 主角开场动画已启用，但未提供主角图像")
+        elif not enable_character_intro and character_image is not None:
+            print("⚠️ 已提供主角图像，但主角开场动画未启用")
+        else:
+            print("ℹ️ 未启用主角开场动画")
+
+        # 重构音频-图像对应逻辑
+        current_duration_index = 0
+
+        # 1. 处理主角图开场动画（如果启用）
+        if enable_character_intro and character_pil is not None:
+            print("🎭 添加主角开场动画...")
+            character_duration = durations[current_duration_index]
+            print(f"   - 主角图使用音频[{current_duration_index}], 时长: {character_duration:.2f}秒")
+
+            # 生成主角开场动画帧
+            for frame in self._generate_character_intro_frames(
+                character_pil, character_duration, fps, width, height,
+                char_intro_scale_start, char_intro_scale_mid, char_intro_scale_end, char_intro_mid_timing
+            ):
+                yield frame
+
+            current_duration_index += 1  # 主角图占用了第一个音频
+
+        # 2. 处理所有场景图像
+        for i, image_tensor in enumerate(images):
+            if current_duration_index >= len(durations):
+                print(f"⚠️ 警告：场景{i+1}没有对应的音频，跳过")
+                break
+
+            duration = durations[current_duration_index]
+            print(f"📹 处理场景 {i+1}/{len(images)}, 使用音频[{current_duration_index}], 时长: {duration:.2f}秒")
+
+            # 转换tensor到PIL图片
+            image_np = (image_tensor.cpu().numpy() * 255).astype(np.uint8)
+            pil_image = Image.fromarray(image_np)
+
+            # 调整图片尺寸到略大于目标，用于缩放动画
+            if animation_type == "coze_zoom":
+                scale_factor = 1.3
+                scaled_width = int(width * scale_factor)
+                scaled_height = int(height * scale_factor)
+                pil_image = pil_image.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+            else:
+                pil_image = pil_image.resize((width, height), Image.Resampling.LANCZOS)
+
+            # 计算需要的帧数
+            total_frames = int(duration * fps)
+            content_frames = total_frames - (transition_frames if i < len(images) - 1 else 0)
+
+            # 生成场景动画帧
+            for frame in self._generate_scene_animation_frames_generator(
+                pil_image, content_frames, width, height, animation_type, i
+            ):
+                yield frame
+
+            # 生成转场帧（除了最后一个场景）
+            if i < len(images) - 1 and transition_frames > 0:
+                next_image_tensor = images[i + 1]
+                next_image_np = (next_image_tensor.cpu().numpy() * 255).astype(np.uint8)
+                next_pil_image = Image.fromarray(next_image_np)
+
+                if animation_type == "coze_zoom":
+                    next_pil_image = next_pil_image.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+                else:
+                    next_pil_image = next_pil_image.resize((width, height), Image.Resampling.LANCZOS)
+
+                # 计算转场时的缩放连续性
+                current_scene_is_odd = i % 2 == 0
+                next_scene_is_odd = (i + 1) % 2 == 0
+
+                # 正确的缩放连续性：当前场景结束值 = 下一场景开始值
+                if current_scene_is_odd:
+                    # 奇数场景: 1.0→1.5，结束值是1.5
+                    current_end_scale = 1.5
+                    next_start_scale = 1.5  # 下一场景从1.5开始
+                else:
+                    # 偶数场景: 1.5→1.0，结束值是1.0
+                    current_end_scale = 1.0
+                    next_start_scale = 1.0  # 下一场景从1.0开始
+
+                print(f"🔄 转场 {i+1}→{i+2}: {current_end_scale:.1f} → {next_start_scale:.1f} (连续缩放)")
+
+                for frame in self._generate_transition_frames_generator(
+                    pil_image, next_pil_image, transition_frames, width, height,
+                    animation_type, current_end_scale, next_start_scale
+                ):
+                    yield frame
+
+            # 递增音频索引，准备处理下一个场景
+            current_duration_index += 1
+
+    def _generate_character_intro_frames(self, character_pil, duration, fps, width, height,
+                                       scale_start, scale_mid, scale_end, mid_timing) -> Generator[np.ndarray, None, None]:
+        """
+        生成主角开场动画帧
+        复刻原Coze工作流的3段式缩放动画：2.0→1.2→1.0
+        """
+        total_frames = int(duration * fps)
+        mid_frame = int(mid_timing * fps)  # 中间关键帧位置
+
+        print(f"👤 主角动画: {scale_start:.1f}→{scale_mid:.1f}→{scale_end:.1f} (总帧数:{total_frames}, 中间帧:{mid_frame})")
+
+        for frame_idx in range(total_frames):
+            if frame_idx <= mid_frame:
+                # 第一段：start → mid
+                progress = frame_idx / max(mid_frame, 1)
+                eased_progress = self._ease_in_out(progress)
+                current_scale = scale_start + (scale_mid - scale_start) * eased_progress
+            else:
+                # 第二段：mid → end
+                progress = (frame_idx - mid_frame) / max(total_frames - mid_frame, 1)
+                eased_progress = self._ease_in_out(progress)
+                current_scale = scale_mid + (scale_end - scale_mid) * eased_progress
+
+            # 每100帧输出调试信息
+            if frame_idx % 100 == 0:
+                print(f"     主角帧{frame_idx}: scale={current_scale:.3f}")
+
+            # 应用缩放效果
+            frame = self._apply_zoom_effect(character_pil, current_scale, width, height)
+            yield frame
+
+    def _generate_scene_animation_frames_generator(self, pil_image, frame_count, width, height,
+                                                 animation_type, scene_index) -> Generator[np.ndarray, None, None]:
+        """场景动画帧生成器（内存优化版本）"""
+
+        if animation_type == "coze_zoom":
+            # Coze风格缩放动画
+            is_odd_scene = scene_index % 2 == 0
+
+            if is_odd_scene:
+                start_scale, end_scale = 1.0, 1.5
+            else:
+                start_scale, end_scale = 1.5, 1.0
+
+            for frame_idx in range(frame_count):
+                progress = frame_idx / max(frame_count - 1, 1)
+                eased_progress = self._ease_in_out(progress)
+                current_scale = start_scale + (end_scale - start_scale) * eased_progress
+
+                # 调试信息：每100帧输出一次当前缩放值
+                if frame_idx % 100 == 0:
+                    print(f"     帧{frame_idx}: scale={current_scale:.3f} (progress={progress:.3f})")
+
+                frame = self._apply_zoom_effect(pil_image, current_scale, width, height)
+                yield frame
+
+        elif animation_type == "fade":
+            # 淡入效果
+            base_frame = np.array(pil_image.resize((width, height), Image.Resampling.LANCZOS))
+            base_frame_bgr = cv2.cvtColor(base_frame, cv2.COLOR_RGB2BGR)
+
+            for frame_idx in range(frame_count):
+                progress = min(frame_idx / (frame_count * 0.2), 1.0)
+                alpha = progress
+                frame = base_frame_bgr * alpha
+                yield frame.astype(np.uint8)
+
+        else:  # none 或其他
+            # 静态帧
+            base_frame = np.array(pil_image.resize((width, height), Image.Resampling.LANCZOS))
+            base_frame_bgr = cv2.cvtColor(base_frame, cv2.COLOR_RGB2BGR)
+
+            for _ in range(frame_count):
+                yield base_frame_bgr
+
+    def _generate_transition_frames_generator(self, current_image, next_image, frame_count,
+                                            width, height, animation_type,
+                                            current_end_scale=1.0, next_start_scale=1.0) -> Generator[np.ndarray, None, None]:
+        """转场帧生成器（内存优化版本，支持缩放连续性）"""
+
+        if animation_type == "coze_zoom":
+            # Coze缩放转场：保持缩放连续性的交叉淡化
+            for frame_idx in range(frame_count):
+                progress = frame_idx / max(frame_count - 1, 1)
+                alpha = self._ease_in_out(progress)
+
+                # 保持连续缩放：两个图像都使用相同的缩放值
+                # 这样就不会有缩放跳跃，只有图像内容的淡入淡出
+                scale_value = current_end_scale  # == next_start_scale，保持连续
+
+                current_frame = self._apply_zoom_effect(current_image, scale_value, width, height)
+                next_frame = self._apply_zoom_effect(next_image, scale_value, width, height)
+
+                # 交叉淡化
+                current_frame_float = current_frame.astype(np.float32)
+                next_frame_float = next_frame.astype(np.float32)
+
+                blended = current_frame_float * (1 - alpha) + next_frame_float * alpha
+                yield blended.astype(np.uint8)
+
+        elif animation_type == "fade":
+            # 简单淡化转场
+            current_frame = np.array(current_image.resize((width, height), Image.Resampling.LANCZOS))
+            next_frame = np.array(next_image.resize((width, height), Image.Resampling.LANCZOS))
+
+            current_bgr = cv2.cvtColor(current_frame, cv2.COLOR_RGB2BGR)
+            next_bgr = cv2.cvtColor(next_frame, cv2.COLOR_RGB2BGR)
+
+            for frame_idx in range(frame_count):
+                progress = frame_idx / max(frame_count - 1, 1)
+                alpha = progress
+                blended = current_bgr * (1 - alpha) + next_bgr * alpha
+                yield blended.astype(np.uint8)
+
+        else:
+            # 硬切换转场
+            current_frame = np.array(current_image.resize((width, height), Image.Resampling.LANCZOS))
+            next_frame = np.array(next_image.resize((width, height), Image.Resampling.LANCZOS))
+
+            current_bgr = cv2.cvtColor(current_frame, cv2.COLOR_RGB2BGR)
+            next_bgr = cv2.cvtColor(next_frame, cv2.COLOR_RGB2BGR)
+
+            for frame_idx in range(frame_count):
+                progress = frame_idx / max(frame_count - 1, 1)
+                if progress < 0.5:
+                    yield current_bgr
+                else:
+                    yield next_bgr
+
+    def _generate_scene_animation_frames(self, pil_image, frame_count, width, height,
+                                       animation_type, scene_index):
+        """
+        为单个场景生成动画帧
+
+        Coze工作流的核心动画：
+        - 奇数场景：从1.0缩放到1.5
+        - 偶数场景：从1.5缩放到1.0
+        """
+        frames = []
+
+        if animation_type == "coze_zoom":
+            # Coze风格缩放动画
+            is_odd_scene = scene_index % 2 == 0  # 0-indexed，所以偶数索引是奇数场景
+
+            if is_odd_scene:
+                # 奇数场景：1.0 → 1.5（放大）
+                start_scale = 1.0
+                end_scale = 1.5
+            else:
+                # 偶数场景：1.5 → 1.0（缩小）
+                start_scale = 1.5
+                end_scale = 1.0
+
+            print(f"   Coze缩放: {start_scale:.1f} → {end_scale:.1f}")
+
+            for frame_idx in range(frame_count):
+                # 计算当前帧的缩放比例（使用缓动函数）
+                progress = frame_idx / max(frame_count - 1, 1)
+                # 使用ease-in-out缓动
+                eased_progress = self._ease_in_out(progress)
+                current_scale = start_scale + (end_scale - start_scale) * eased_progress
+
+                # 应用缩放效果
+                frame = self._apply_zoom_effect(pil_image, current_scale, width, height)
+                frames.append(frame)
+
+        elif animation_type == "fade":
+            # 淡入效果
+            base_frame = np.array(pil_image.resize((width, height), Image.Resampling.LANCZOS))
+            base_frame_bgr = cv2.cvtColor(base_frame, cv2.COLOR_RGB2BGR)
+
+            for frame_idx in range(frame_count):
+                progress = min(frame_idx / (frame_count * 0.2), 1.0)  # 前20%时间淡入
+                alpha = progress
+                frame = base_frame_bgr * alpha
+                frames.append(frame.astype(np.uint8))
+
+        else:  # none 或其他
+            # 静态帧
+            base_frame = np.array(pil_image.resize((width, height), Image.Resampling.LANCZOS))
+            base_frame_bgr = cv2.cvtColor(base_frame, cv2.COLOR_RGB2BGR)
+
+            for _ in range(frame_count):
+                frames.append(base_frame_bgr)
+
+        return frames
+
+    def _apply_zoom_effect(self, pil_image, scale, target_width, target_height):
+        """
+        应用Ken Burns缩放效果（完全重构版 - 基于图像变换消除晃动）
+
+        新算法：
+        1. 先将原图调整到适当大小
+        2. 然后居中裁剪到目标尺寸
+        3. 确保缩放中心始终稳定
+
+        scale = 1.0: 显示完整图片
+        scale = 1.5: 放大1.5倍（显示中心2/3区域）
+        scale = 2.0: 放大2倍（显示中心1/2区域）
+        """
+        img_width, img_height = pil_image.size
+
+        # 计算目标图像的实际显示尺寸（应用缩放因子）
+        # scale > 1.0 表示放大，需要更大的中间图像
+        intermediate_width = int(target_width * scale)
+        intermediate_height = int(target_height * scale)
+
+        # 步骤1：将原图缩放到中间尺寸，保持纵横比
+        # 找到合适的缩放比例，确保能完全覆盖中间尺寸
+        scale_x = intermediate_width / img_width
+        scale_y = intermediate_height / img_height
+        uniform_scale = max(scale_x, scale_y)  # 选择较大的缩放比例，确保完全覆盖
+
+        # 应用等比例缩放（使用高精度计算避免晃动）
+        # 使用浮点数精确计算，然后四舍五入到最接近的偶数像素
+        scaled_width_float = img_width * uniform_scale
+        scaled_height_float = img_height * uniform_scale
+
+        # 使用更稳定的取整方法
+        scaled_width = int(round(scaled_width_float))
+        scaled_height = int(round(scaled_height_float))
+
+        # 确保尺寸为偶数（视频编码友好，避免亚像素问题）
+        if scaled_width % 2 == 1:
+            scaled_width += 1
+        if scaled_height % 2 == 1:
+            scaled_height += 1
+
+        # 使用高质量的重采样算法
+        scaled_image = pil_image.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+
+        # 步骤2：从缩放后的图像中心裁剪目标尺寸（精确居中）
+        # 使用浮点数精确计算中心位置，避免整数除法误差
+        center_x_float = scaled_width / 2.0
+        center_y_float = scaled_height / 2.0
+
+        half_target_width_float = target_width / 2.0
+        half_target_height_float = target_height / 2.0
+
+        # 精确计算裁剪区域
+        left_float = center_x_float - half_target_width_float
+        top_float = center_y_float - half_target_height_float
+
+        # 四舍五入到整数像素
+        left = int(round(left_float))
+        top = int(round(top_float))
+        right = left + target_width
+        bottom = top + target_height
+
+        # 边界检查，确保裁剪区域在图像范围内
+        left = max(0, left)
+        top = max(0, top)
+        right = min(scaled_width, right)
+        bottom = min(scaled_height, bottom)
+
+        # 重新计算实际的裁剪尺寸
+        actual_width = right - left
+        actual_height = bottom - top
+
+        # 执行裁剪
+        if actual_width > 0 and actual_height > 0:
+            cropped = scaled_image.crop((left, top, right, bottom))
+
+            # 如果裁剪后的尺寸不等于目标尺寸，进行最终调整
+            if cropped.size != (target_width, target_height):
+                cropped = cropped.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        else:
+            # 异常情况，使用原图直接缩放
+            cropped = pil_image.resize((target_width, target_height), Image.Resampling.LANCZOS)
+
+        # 转换为OpenCV格式
+        frame_np = np.array(cropped)
+        frame_bgr = cv2.cvtColor(frame_np, cv2.COLOR_RGB2BGR)
+
+        return frame_bgr
+
+    def _generate_transition_frames(self, current_image, next_image, frame_count,
+                                  width, height, animation_type):
+        """生成转场帧"""
+        frames = []
+
+        current_frame = np.array(current_image.resize((width, height), Image.Resampling.LANCZOS))
+        next_frame = np.array(next_image.resize((width, height), Image.Resampling.LANCZOS))
+
+        current_bgr = cv2.cvtColor(current_frame, cv2.COLOR_RGB2BGR)
+        next_bgr = cv2.cvtColor(next_frame, cv2.COLOR_RGB2BGR)
+
+        for frame_idx in range(frame_count):
+            progress = frame_idx / max(frame_count - 1, 1)
+
+            if animation_type == "fade":
+                # 交叉淡化
+                alpha = progress
+                blended = current_bgr * (1 - alpha) + next_bgr * alpha
+                frames.append(blended.astype(np.uint8))
+            else:
+                # 默认：快速切换（用于其他动画类型）
+                if progress < 0.5:
+                    frames.append(current_bgr)
+                else:
+                    frames.append(next_bgr)
+
+        return frames
+
+    def _ease_in_out(self, t):
+        """缓动函数：线性插值（修复晃动问题）"""
+        # 原来的 ease-in-out: t * t * (3.0 - 2.0 * t)
+        # 改为线性插值，消除加速度变化导致的视觉晃动
+        return t  # 线性插值，无加速度变化
+
+    def _merge_video_audio_streaming(self, frame_generator, audio_path, output_path, fps, quality, total_frames, title_config=None):
+        """使用流式处理合成视频，避免内存溢出"""
+        temp_video_path = output_path + ".temp.mp4"
+
+        try:
+            # 设置视频编码器参数
+            if quality == "high":
+                crf = 18
+            elif quality == "medium":
+                crf = 23
+            else:  # low
+                crf = 28
+
+            print(f"🎬 开始流式写入视频: {total_frames} 帧")
+
+            # 获取第一帧确定视频尺寸
+            first_frame = next(frame_generator)
+            height, width = first_frame.shape[:2]
+
+            # 使用OpenCV创建视频写入器
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+
+            if not out.isOpened():
+                raise Exception("无法创建视频写入器")
+
+            # 写入第一帧
+            out.write(first_frame)
+            frames_written = 1
+
+            # 流式写入剩余帧
+            for frame in frame_generator:
+                out.write(frame)
+                frames_written += 1
+
+                # 每1000帧报告进度
+                if frames_written % 1000 == 0:
+                    progress = (frames_written / total_frames) * 100
+                    print(f"📹 写入进度: {frames_written}/{total_frames} ({progress:.1f}%)")
+
+            out.release()
+            print(f"✅ 视频写入完成: {frames_written} 帧")
+
+            # 使用ffmpeg添加音频
+            self._add_audio_with_ffmpeg(temp_video_path, audio_path, output_path, crf, title_config)
+
+        except Exception as e:
+            # 清理临时文件
+            if os.path.exists(temp_video_path):
+                os.unlink(temp_video_path)
+            raise e
+
+    def _add_audio_with_ffmpeg(self, video_path, audio_path, output_path, crf, title_config=None):
+        """使用ffmpeg添加音频和可选的标题文字"""
+        try:
+            # 构建ffmpeg命令
+            cmd = ['ffmpeg', '-y', '-i', video_path, '-i', audio_path]
+
+            # 添加文字滤镜（如果启用标题）
+            if title_config and title_config.get('enable_title') and title_config.get('title_text'):
+                title_text = title_config['title_text']
+                fontsize = title_config.get('fontsize', 80)
+                color = title_config.get('color', 'white')
+                duration = title_config.get('duration', 3.0)
+
+                # 转义文字中的特殊字符
+                title_text = title_text.replace(":", "\\:")
+                title_text = title_text.replace("'", "\\'")
+
+                # 获取指定字体
+                font_name = title_config.get('font', 'auto')
+                font_path = self._get_font_path(font_name)
+
+                # 构建drawtext滤镜
+                # x=(w-text_w)/2 水平居中, y=(h-text_h)/2 垂直居中
+                # enable='between(t,0,{duration})' 只在开头N秒显示
+                if font_path:
+                    text_filter = f"drawtext=text='{title_text}':fontfile='{font_path}':fontsize={fontsize}:fontcolor={color}:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,0,{duration})'"
+                else:
+                    # 回退到默认字体（可能无法显示中文）
+                    text_filter = f"drawtext=text='{title_text}':fontsize={fontsize}:fontcolor={color}:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,0,{duration})'"
+                    print("⚠️ 未找到中文字体，使用系统默认字体")
+
+                cmd.extend(['-vf', text_filter])
+                print(f"📝 添加标题: '{title_text}' (显示{duration}秒)")
+
+            # 视频和音频编码参数
+            cmd.extend([
+                '-c:v', 'libx264',
+                '-crf', str(crf),
+                '-preset', 'medium',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-shortest',  # 以最短的流为准
+                output_path
+            ])
+
+            print("🔊 添加音频轨道...")
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+            # 清理临时视频文件
+            os.unlink(video_path)
+            print("🎵 音频合并成功")
+
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ ffmpeg执行失败: {e.stderr}")
+            # 如果ffmpeg失败，使用原视频
+            shutil.move(video_path, output_path)
+            print("📹 使用无音频视频")
+
+        except FileNotFoundError:
+            print("⚠️ ffmpeg未找到，使用无音频视频")
+            shutil.move(video_path, output_path)
+
+    def _get_font_path(self, font_name):
+        """根据字体名称获取字体路径"""
+        import platform
+
+        # 字体映射表
+        font_mapping = self._get_font_mapping()
+
+        # 中文选项映射到英文key
+        font_name_mapping = {
+            "自动选择": "auto",
+            "Noto无衬线-常规": "noto_cjk_regular",
+            "Noto无衬线-粗体": "noto_cjk_bold",
+            "Noto衬线体-粗体": "noto_serif_cjk_bold",
+            "文泉驿正黑": "wqy_zenhei",
+            "超级粗体": "nimbus_sans_bold",
+            "英文粗体": "noto_serif_bold",
+            "Droid黑体": "droid_sans",
+            "Arial风格": "arial",
+            "Helvetica风格": "helvetica",
+            "Times风格": "times"
+        }
+
+        # 如果是中文选项，转换为英文key
+        if font_name in font_name_mapping:
+            font_name = font_name_mapping[font_name]
+
+        if font_name == "auto":
+            # 自动选择最优字体
+            return self._find_best_font()
+
+        if font_name in font_mapping:
+            # 检查指定字体是否存在
+            font_paths = font_mapping[font_name]
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    print(f"🔤 使用指定字体: {font_name} -> {font_path}")
+                    return font_path
+
+            print(f"⚠️ 指定字体 {font_name} 不存在，回退到自动选择")
+            return self._find_best_font()
+
+        print(f"⚠️ 未知字体名称: {font_name}，回退到自动选择")
+        return self._find_best_font()
+
+    def _get_font_mapping(self):
+        """获取字体名称到路径的映射"""
+        # 获取内置字体包路径
+        bundled_fonts_dir = self._get_bundled_fonts_dir()
+
+        # 内置字体包映射（优先使用）
+        bundled_fonts = {
+            "noto_cjk_regular": os.path.join(bundled_fonts_dir, "NotoSansCJK-Regular.ttc"),
+            "noto_cjk_bold": os.path.join(bundled_fonts_dir, "NotoSansCJK-Bold.ttc"),
+            "noto_serif_cjk_bold": os.path.join(bundled_fonts_dir, "NotoSerifCJK-Bold.ttc"),
+            "wqy_zenhei": os.path.join(bundled_fonts_dir, "wqy-zenhei.ttc"),
+            "nimbus_sans_bold": os.path.join(bundled_fonts_dir, "NimbusSans-Bold.otf"),
+            "noto_serif_bold": os.path.join(bundled_fonts_dir, "NotoSerif-Bold.ttf"),
+            "arial": os.path.join(bundled_fonts_dir, "LiberationSans-Regular.ttf"),
+            "helvetica": os.path.join(bundled_fonts_dir, "LiberationSans-Regular.ttf"),
+            "times": os.path.join(bundled_fonts_dir, "LiberationSerif-Regular.ttf")
+        }
+
+        # 构建完整的字体映射（内置字体 + 系统字体作为备选）
+        import platform
+        system = platform.system()
+
+        font_mapping = {}
+
+        # 为每个字体添加内置版本和系统备选版本
+        for font_key in bundled_fonts:
+            font_mapping[font_key] = [bundled_fonts[font_key]]
+
+            # 添加系统字体作为备选
+            if system == "Linux":
+                system_paths = {
+                    "noto_cjk_regular": [
+                        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"
+                    ],
+                    "noto_cjk_bold": [
+                        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+                        "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc"
+                    ],
+                    "wqy_zenhei": ["/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"],
+                    "arial": [
+                        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+                    ],
+                    "helvetica": [
+                        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+                    ],
+                    "times": [
+                        "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"
+                    ]
+                }
+            elif system == "Windows":
+                system_paths = {
+                    "noto_cjk_regular": ["C:/Windows/Fonts/NotoSansCJK-Regular.ttc"],
+                    "noto_cjk_bold": ["C:/Windows/Fonts/NotoSansCJK-Bold.ttc"],
+                    "wqy_zenhei": [],
+                    "arial": ["C:/Windows/Fonts/arial.ttf"],
+                    "helvetica": ["C:/Windows/Fonts/arial.ttf"],
+                    "times": ["C:/Windows/Fonts/times.ttf"]
+                }
+            elif system == "Darwin":  # macOS
+                system_paths = {
+                    "noto_cjk_regular": ["/Library/Fonts/NotoSansCJK-Regular.ttc"],
+                    "noto_cjk_bold": ["/Library/Fonts/NotoSansCJK-Bold.ttc"],
+                    "wqy_zenhei": [],
+                    "arial": ["/System/Library/Fonts/Arial.ttf"],
+                    "helvetica": ["/System/Library/Fonts/Helvetica.ttc"],
+                    "times": ["/System/Library/Fonts/Times.ttc"]
+                }
+            else:
+                system_paths = {}
+
+            # 添加系统路径作为备选
+            if font_key in system_paths:
+                font_mapping[font_key].extend(system_paths[font_key])
+
+        # 添加仅在某些字体包中的特殊字体
+        if system == "Linux":
+            font_mapping["noto_serif_cjk"] = [
+                "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc"
+            ]
+            font_mapping["droid_sans"] = [
+                "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+                "/usr/share/fonts/truetype/droid/DroidSans.ttf"
+            ]
+
+        return font_mapping
+
+    def _get_bundled_fonts_dir(self):
+        """获取内置字体包目录路径"""
+        # 获取当前文件所在目录
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        fonts_dir = os.path.join(current_dir, "fonts")
+
+        if os.path.exists(fonts_dir):
+            print(f"🔤 找到内置字体包: {fonts_dir}")
+            return fonts_dir
+        else:
+            print(f"⚠️ 内置字体包不存在: {fonts_dir}")
+            return None
+
+    def _find_best_font(self):
+        """自动查找最佳可用字体（优先内置字体）"""
+        # 获取内置字体包路径
+        bundled_fonts_dir = self._get_bundled_fonts_dir()
+
+        # 优先级字体列表（内置字体包优先）
+        priority_fonts = []
+
+        if bundled_fonts_dir:
+            # 内置字体包字体（最高优先级，粗体优先用于标题）
+            bundled_priority = [
+                os.path.join(bundled_fonts_dir, "NotoSansCJK-Bold.ttc"),     # Noto粗体（标题首选）
+                os.path.join(bundled_fonts_dir, "NotoSerifCJK-Bold.ttc"),    # Noto衬线粗体
+                os.path.join(bundled_fonts_dir, "wqy-zenhei.ttc"),           # 文泉驿正黑
+                os.path.join(bundled_fonts_dir, "NotoSansCJK-Regular.ttc"),  # Noto常规
+                os.path.join(bundled_fonts_dir, "LiberationSans-Regular.ttf"), # Liberation Sans
+            ]
+            priority_fonts.extend(bundled_priority)
+
+        # 系统字体作为备选
+        import platform
+        system = platform.system()
+
+        if system == "Linux":
+            system_fonts = [
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",  # Noto中日韩字体
+                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",  # 文泉驿正黑
+                "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",  # Droid字体
+                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",  # 文泉驿微米黑
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",  # Noto粗体
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Liberation
+            ]
+        elif system == "Windows":
+            system_fonts = [
+                "C:/Windows/Fonts/msyh.ttc",    # 微软雅黑
+                "C:/Windows/Fonts/simhei.ttf",  # 黑体
+                "C:/Windows/Fonts/simsun.ttc",  # 宋体
+                "C:/Windows/Fonts/simkai.ttf",  # 楷体
+                "C:/Windows/Fonts/arial.ttf",   # Arial
+            ]
+        elif system == "Darwin":  # macOS
+            system_fonts = [
+                "/System/Library/Fonts/PingFang.ttc",
+                "/Library/Fonts/STHeiti Light.ttc",
+                "/System/Library/Fonts/STHeiti Medium.ttc",
+                "/Library/Fonts/Arial Unicode MS.ttf",
+                "/System/Library/Fonts/Arial.ttf",
+            ]
+        else:
+            system_fonts = []
+
+        priority_fonts.extend(system_fonts)
+
+        # 查找第一个存在的字体
+        for font_path in priority_fonts:
+            if os.path.exists(font_path):
+                source = "内置字体包" if bundled_fonts_dir and font_path.startswith(bundled_fonts_dir) else "系统字体"
+                print(f"🔤 自动选择字体: {font_path} ({source})")
+                return font_path
+
+        print("⚠️ 未找到任何可用字体")
+        return None
+
+    def _get_timestamp(self):
+        """获取时间戳"""
+        import time
+        return str(int(time.time()))
+
+
+# 注册节点
+NODE_CLASS_MAPPINGS = {
+    "VideoComposer": VideoComposer
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "VideoComposer": "🎬 视频合成器"
+}

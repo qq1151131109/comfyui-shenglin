@@ -141,7 +141,7 @@ class BatchMiniMaxTTSNode:
     RETURN_TYPES = ("*", "LIST", "STRING", "STRING")
     RETURN_NAMES = ("audio_list", "file_paths", "durations_info", "processing_log")
     FUNCTION = "generate_batch_tts"
-    CATEGORY = "🎵 Shenglin/Audio"
+    CATEGORY = "🔥 Shenglin/音频处理"
     DESCRIPTION = "批量生成TTS音频，支持整篇文案按行处理"
 
     def generate_batch_tts(

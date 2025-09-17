@@ -27,7 +27,7 @@ class RH_AudioUploader:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("filename",)
     FUNCTION = "upload_and_get_filename"
-    CATEGORY = "⚙️ Shenglin/RunningHub/Tools"
+    CATEGORY = "🔥 Shenglin/工具"
     OUTPUT_NODE = False
 
     def upload_and_get_filename(self, apiConfig, audio):

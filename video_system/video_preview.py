@@ -4,18 +4,25 @@
 """
 
 import os
-import tempfile
-import shutil
 import folder_paths
-import json
-import base64
-from typing import Optional
+import shutil
+from pathlib import Path
+
+# 尝试导入新的ComfyUI API
+try:
+    from comfy_api.latest import ui, io
+    NEW_API_AVAILABLE = True
+    print("✅ VideoPreview: 使用新的ComfyUI API")
+except ImportError:
+    NEW_API_AVAILABLE = False
+    print("⚠️ VideoPreview: 使用传统API格式")
 
 class VideoPreview:
     """
     视频预览节点
 
     接收视频文件路径，在ComfyUI界面中显示视频预览
+    使用ComfyUI标准的视频预览机制
     """
 
     @classmethod
@@ -27,193 +34,115 @@ class VideoPreview:
                     "tooltip": "视频文件路径"
                 }),
             },
-            "optional": {
-                "autoplay": ("BOOLEAN", {
-                    "default": True,
-                    "tooltip": "自动播放"
-                }),
-                "loop": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "循环播放"
-                }),
-                "controls": ("BOOLEAN", {
-                    "default": True,
-                    "tooltip": "显示播放控制器"
-                })
-            },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
     RETURN_TYPES = ()
     FUNCTION = "preview_video"
     OUTPUT_NODE = True
-    CATEGORY = "🎬 Shenglin/Video"
+    CATEGORY = "🔥 Shenglin/视频处理"
     DESCRIPTION = "在ComfyUI界面中预览视频"
 
-    def __init__(self):
-        self.temp_dir = folder_paths.get_temp_directory()
-        self.type = "temp"
-
-    def preview_video(self, video_path: str, autoplay: bool = True,
-                     loop: bool = False, controls: bool = True,
-                     prompt=None, extra_pnginfo=None):
+    def preview_video(self, video_path: str, prompt=None, extra_pnginfo=None):
         """
         预览视频的主函数
         """
         try:
             if not video_path or not os.path.exists(video_path):
-                return {
-                    "ui": {
-                        "video": [{
-                            "error": "视频文件不存在或路径无效",
-                            "path": video_path
-                        }]
-                    }
-                }
+                print(f"❌ 视频文件不存在: {video_path}")
+                return {"ui": {"text": [f"视频文件不存在: {video_path}"]}}
 
             # 获取视频文件信息
-            file_size = os.path.getsize(video_path)
             file_name = os.path.basename(video_path)
+            file_size = os.path.getsize(video_path)
 
             print(f"🎥 预览视频: {file_name} ({file_size / (1024*1024):.2f} MB)")
 
-            # 检查视频文件是否可访问
+            # 检查视频文件格式
             if not self._is_video_file(video_path):
+                supported_formats = [".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v"]
+                print(f"❌ 不支持的视频格式，支持的格式: {supported_formats}")
+                return {"ui": {"text": [f"不支持的视频格式，支持的格式: {supported_formats}"]}}
+
+            # 确保视频文件在可访问的路径
+            accessible_path, subfolder, folder_type = self._ensure_accessible_path(video_path, file_name)
+
+            # 使用ComfyUI标准的视频预览格式 (视频作为动画图像处理)
+            if NEW_API_AVAILABLE:
+                # 使用新的API格式：PreviewVideo返回 {"images": [...], "animated": (True,)}
+                folder_type_enum = io.FolderType.output if folder_type == "output" else io.FolderType.temp
+                saved_result = ui.SavedResult(
+                    filename=os.path.basename(accessible_path),
+                    subfolder=subfolder,
+                    type=folder_type_enum
+                )
+                preview_video = ui.PreviewVideo([saved_result])
+                result_ui = preview_video.as_dict()
+                print(f"✅ 视频预览准备完成 (新API): {result_ui}")
+                return {"ui": result_ui}
+            else:
+                # 使用传统格式：视频作为animated images
+                result = {
+                    "filename": os.path.basename(accessible_path),
+                    "subfolder": subfolder,
+                    "type": folder_type
+                }
+                print(f"✅ 视频预览准备完成 (传统API): {result}")
+                # ComfyUI视频预览的正确格式：images + animated标志
                 return {
                     "ui": {
-                        "video": [{
-                            "error": "不支持的视频格式",
-                            "supported_formats": ["mp4", "avi", "mov", "mkv", "webm"]
-                        }]
+                        "images": [result],
+                        "animated": (True,)
                     }
                 }
-
-            # 生成预览结果
-            video_info = self._prepare_video_preview(
-                video_path, file_name, file_size, autoplay, loop, controls
-            )
-
-            return {"ui": {"video": [video_info]}}
 
         except Exception as e:
             error_msg = f"视频预览失败: {str(e)}"
             print(f"❌ {error_msg}")
-
-            return {
-                "ui": {
-                    "video": [{
-                        "error": error_msg
-                    }]
-                }
-            }
+            return {"ui": {"text": [error_msg]}}
 
     def _is_video_file(self, file_path: str) -> bool:
         """检查是否为支持的视频文件"""
-        supported_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv']
+        supported_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.m4v', '.flv']
         file_ext = os.path.splitext(file_path)[1].lower()
         return file_ext in supported_extensions
 
-    def _prepare_video_preview(self, video_path: str, file_name: str,
-                              file_size: int, autoplay: bool,
-                              loop: bool, controls: bool) -> dict:
+    def _ensure_accessible_path(self, video_path: str, file_name: str) -> tuple:
         """
-        准备视频预览数据
+        确保视频文件在ComfyUI可访问的路径
+        返回: (accessible_path, subfolder, folder_type)
         """
-        # 检查是否需要复制到临时目录（如果视频不在可访问路径）
-        accessible_path = self._ensure_accessible_path(video_path, file_name)
-
-        # 生成相对于ComfyUI的访问路径
-        output_dir = folder_paths.get_output_directory()
-
-        if accessible_path.startswith(output_dir):
-            # 输出目录中的文件
-            relative_path = os.path.relpath(accessible_path, output_dir)
-            web_path = f"/view?filename={relative_path}&type=output&subfolder="
-        elif accessible_path.startswith(self.temp_dir):
-            # 临时目录中的文件
-            relative_path = os.path.relpath(accessible_path, self.temp_dir)
-            web_path = f"/view?filename={relative_path}&type=temp&subfolder="
-        else:
-            # 复制到temp目录
-            temp_path = os.path.join(self.temp_dir, file_name)
-            shutil.copy2(accessible_path, temp_path)
-            web_path = f"/view?filename={file_name}&type=temp&subfolder="
-
-        # 获取视频元数据（如果可能）
-        video_info = self._get_video_metadata(accessible_path)
-
-        return {
-            "filename": file_name,
-            "path": web_path,
-            "type": "video",
-            "size": file_size,
-            "size_mb": round(file_size / (1024 * 1024), 2),
-            "autoplay": autoplay,
-            "loop": loop,
-            "controls": controls,
-            "format": "video/mp4",  # 默认格式，前端会自动检测
-            **video_info
-        }
-
-    def _ensure_accessible_path(self, video_path: str, file_name: str) -> str:
-        """确保视频文件在可访问的路径"""
         temp_dir = folder_paths.get_temp_directory()
         output_dir = folder_paths.get_output_directory()
 
-        # 如果已经在temp或output目录，直接使用
-        if video_path.startswith(temp_dir) or video_path.startswith(output_dir):
-            return video_path
+        # 检查文件是否已经在output目录
+        if video_path.startswith(output_dir):
+            relative_path = os.path.relpath(video_path, output_dir)
+            subfolder = os.path.dirname(relative_path) if os.path.dirname(relative_path) else ""
+            return video_path, subfolder, "output"
 
-        # 否则复制到temp目录
+        # 检查文件是否已经在temp目录
+        if video_path.startswith(temp_dir):
+            relative_path = os.path.relpath(video_path, temp_dir)
+            subfolder = os.path.dirname(relative_path) if os.path.dirname(relative_path) else ""
+            return video_path, subfolder, "temp"
+
+        # 文件不在可访问目录，复制到temp目录
+        # 保持原始文件名，避免重复
         temp_path = os.path.join(temp_dir, file_name)
-        if not os.path.exists(temp_path) or os.path.getmtime(video_path) > os.path.getmtime(temp_path):
-            print(f"📁 复制视频到临时目录: {temp_path}")
-            shutil.copy2(video_path, temp_path)
 
-        return temp_path
+        # 如果文件已存在且是同一个文件，不需要重复复制
+        if os.path.exists(temp_path):
+            if os.path.getmtime(video_path) <= os.path.getmtime(temp_path):
+                print(f"📁 使用已存在的临时文件: {temp_path}")
+                return temp_path, "", "temp"
 
-    def _get_video_metadata(self, video_path: str) -> dict:
-        """
-        获取视频元数据
-        """
-        metadata = {}
+        # 复制文件到temp目录
+        print(f"📁 复制视频到临时目录: {temp_path}")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        shutil.copy2(video_path, temp_path)
 
-        try:
-            # 尝试使用ffprobe获取视频信息
-            import subprocess
-            import json as json_lib
-
-            cmd = [
-                'ffprobe', '-v', 'quiet', '-print_format', 'json',
-                '-show_format', '-show_streams', video_path
-            ]
-
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-
-            if result.returncode == 0:
-                probe_data = json_lib.loads(result.stdout)
-
-                # 获取视频流信息
-                for stream in probe_data.get('streams', []):
-                    if stream.get('codec_type') == 'video':
-                        metadata.update({
-                            'width': stream.get('width'),
-                            'height': stream.get('height'),
-                            'duration': float(stream.get('duration', 0)),
-                            'fps': eval(stream.get('r_frame_rate', '30/1'))
-                        })
-                        break
-
-                # 获取格式信息
-                format_info = probe_data.get('format', {})
-                if 'duration' in format_info:
-                    metadata['duration'] = float(format_info['duration'])
-
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError, Exception):
-            # ffprobe不可用或执行失败，使用默认值
-            pass
-
-        return metadata
+        return temp_path, "", "temp"
 
 
 # 注册节点

@@ -1,0 +1,437 @@
+"""
+增强版视频合成器节点 - 集成音效库
+基于原VideoComposer，新增3轨音频系统支持
+"""
+
+import os
+import sys
+import tempfile
+import subprocess
+import shutil
+import torch
+import torchaudio
+import numpy as np
+from PIL import Image, ImageEnhance, ImageFilter
+import cv2
+import folder_paths
+from typing import List, Dict, Any, Tuple, Generator, Optional
+import json
+import math
+
+# 导入音效管理器（从当前节点目录）
+try:
+    # 尝试从节点目录导入
+    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, current_dir)
+    from audio_effects_manager import AudioEffectsManager
+    AUDIO_EFFECTS_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ 音效库不可用: {e}")
+    AUDIO_EFFECTS_AVAILABLE = False
+
+class EnhancedVideoComposer:
+    """
+    增强版视频合成器 - 支持3轨音频系统
+
+    1. 主音轨：TTS生成的旁白语音
+    2. 背景音乐轨：循环播放的背景音乐（音量30%）
+    3. 音效轨：开场音效等特殊音效（音量80%）
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "audio_list": ("*", {"tooltip": "音频列表，每个音频对应一个场景"}),
+                "images": ("IMAGE", {"tooltip": "图片batch，每张图片对应一个场景"}),
+                "fps": ("INT", {
+                    "default": 30,
+                    "min": 15,
+                    "max": 60,
+                    "step": 1,
+                    "tooltip": "视频帧率"
+                }),
+                "width": ("INT", {
+                    "default": 720,
+                    "min": 480,
+                    "max": 1920,
+                    "step": 8,
+                    "tooltip": "视频宽度"
+                }),
+                "height": ("INT", {
+                    "default": 1280,
+                    "min": 720,
+                    "max": 2560,
+                    "step": 8,
+                    "tooltip": "视频高度"
+                })
+            },
+            "optional": {
+                "output_format": (["mp4", "avi", "mov"], {
+                    "default": "mp4",
+                    "tooltip": "输出视频格式"
+                }),
+                "quality": (["high", "medium", "low"], {
+                    "default": "medium",
+                    "tooltip": "视频质量"
+                }),
+                "animation_type": (["coze_zoom", "fade", "slide", "none"], {
+                    "default": "coze_zoom",
+                    "tooltip": "动画效果类型"
+                }),
+                "transition_duration": ("FLOAT", {
+                    "default": 0.5,
+                    "min": 0.0,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "tooltip": "转场时长（秒）"
+                }),
+
+                # 🎵 新增音效库参数
+                "enable_audio_effects": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "启用音效库（背景音乐+开场音效）"
+                }),
+                "background_music_volume": ("FLOAT", {
+                    "default": 0.3,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.1,
+                    "tooltip": "背景音乐音量（0.3=30%）"
+                }),
+                "opening_sound_volume": ("FLOAT", {
+                    "default": 0.8,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.1,
+                    "tooltip": "开场音效音量（0.8=80%）"
+                }),
+                "voice_volume": ("FLOAT", {
+                    "default": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.1,
+                    "tooltip": "主音轨（语音）音量"
+                }),
+
+                # 主角图相关参数
+                "character_image": ("IMAGE", {
+                    "tooltip": "主角图片，用于首帧特效（可选）"
+                }),
+                "enable_character_intro": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "启用主角开场动画"
+                }),
+                "char_intro_scale_start": ("FLOAT", {
+                    "default": 2.0,
+                    "min": 0.5,
+                    "max": 5.0,
+                    "step": 0.1,
+                    "tooltip": "主角图开始缩放比例"
+                }),
+                "char_intro_scale_mid": ("FLOAT", {
+                    "default": 1.2,
+                    "min": 0.5,
+                    "max": 3.0,
+                    "step": 0.1,
+                    "tooltip": "主角图中间缩放比例"
+                }),
+                "char_intro_scale_end": ("FLOAT", {
+                    "default": 1.0,
+                    "min": 0.5,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "tooltip": "主角图结束缩放比例"
+                }),
+                "char_intro_mid_timing": ("FLOAT", {
+                    "default": 0.533,
+                    "min": 0.1,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "tooltip": "主角图中间关键帧时间点（秒）"
+                })
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("video_path", "info")
+    FUNCTION = "compose_video_with_effects"
+    CATEGORY = "🔥 Shenglin/视频处理"
+    DESCRIPTION = "增强版视频合成器，支持3轨音频系统（语音+背景音乐+音效）"
+
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+        # 初始化音效管理器
+        if AUDIO_EFFECTS_AVAILABLE:
+            try:
+                self.audio_effects_manager = AudioEffectsManager()
+                print("✅ 音效库初始化成功")
+            except Exception as e:
+                print(f"❌ 音效库初始化失败: {e}")
+                self.audio_effects_manager = None
+        else:
+            self.audio_effects_manager = None
+
+    def compose_video_with_effects(self, audio_list, images, fps=30, width=720, height=1280,
+                                 output_format="mp4", quality="medium", animation_type="coze_zoom",
+                                 transition_duration=0.5, enable_audio_effects=True,
+                                 background_music_volume=0.3, opening_sound_volume=0.8, voice_volume=1.0,
+                                 character_image=None, enable_character_intro=False,
+                                 char_intro_scale_start=2.0, char_intro_scale_mid=1.2,
+                                 char_intro_scale_end=1.0, char_intro_mid_timing=0.533):
+        """
+        增强版视频合成 - 支持3轨音频系统
+        """
+        try:
+            # 检查输入
+            if not isinstance(audio_list, list):
+                raise ValueError("audio_list必须是列表类型")
+
+            if len(audio_list) == 0:
+                raise ValueError("音频列表不能为空")
+
+            if images.shape[0] != len(audio_list):
+                print(f"⚠️ 警告：图片数量({images.shape[0]}) 与音频数量({len(audio_list)}) 不匹配")
+                min_count = min(images.shape[0], len(audio_list))
+                images = images[:min_count]
+                audio_list = audio_list[:min_count]
+
+            print(f"🎬 开始增强版视频合成：{len(audio_list)} 个场景，分辨率 {width}x{height}")
+            if enable_audio_effects:
+                print("🎵 启用3轨音频系统（语音+背景音乐+音效）")
+
+            # 1. 分析音频时长
+            audio_durations = []
+            total_duration = 0
+
+            for i, audio_dict in enumerate(audio_list):
+                if isinstance(audio_dict, dict) and "waveform" in audio_dict:
+                    waveform = audio_dict["waveform"]
+                    sample_rate = audio_dict["sample_rate"]
+
+                    if len(waveform.shape) == 3:
+                        waveform = waveform[0]  # 移除batch维度
+
+                    duration = waveform.shape[1] / sample_rate
+                    audio_durations.append(duration)
+                    total_duration += duration
+                    print(f"🎵 场景 {i+1} 音频时长: {duration:.2f}秒")
+                else:
+                    raise ValueError(f"音频 {i} 格式不正确，需要包含waveform和sample_rate")
+
+            # 2. 合成3轨音频系统
+            print("🔊 开始3轨音频合成...")
+            if enable_audio_effects and self.audio_effects_manager:
+                combined_audio_path = self._combine_audio_with_effects(
+                    audio_list, total_duration, background_music_volume,
+                    opening_sound_volume, voice_volume
+                )
+            else:
+                # 回退到原始单轨音频
+                print("📢 使用单轨音频模式")
+                combined_audio_path = self._combine_audio_simple(audio_list, voice_volume)
+
+            # 3. 计算总帧数
+            total_frames = sum(int(duration * fps) for duration in audio_durations)
+            transition_frames_total = int(transition_duration * fps) * (len(images) - 1) if transition_duration > 0 else 0
+            total_frames += transition_frames_total
+
+            print(f"📊 预计生成 {total_frames} 帧")
+
+            # 4. 合成最终视频
+            print("🎬 开始视频合成...")
+            output_filename = f"story_video_enhanced_{self._get_timestamp()}.{output_format}"
+            video_path = os.path.join(self.output_dir, output_filename)
+
+            # 创建帧生成器
+            from .video_composer import VideoComposer  # 导入原始类的方法
+            original_composer = VideoComposer()
+
+            frame_generator = original_composer._create_animated_frame_generator(
+                images, audio_durations, fps, width, height,
+                animation_type, transition_duration, character_image, enable_character_intro,
+                char_intro_scale_start, char_intro_scale_mid, char_intro_scale_end, char_intro_mid_timing
+            )
+
+            original_composer._merge_video_audio_streaming(
+                frame_generator, combined_audio_path, video_path, fps, quality, total_frames
+            )
+
+            # 5. 清理临时文件
+            try:
+                os.unlink(combined_audio_path)
+            except:
+                pass
+
+            # 6. 生成信息报告
+            audio_tracks_info = "3轨音频" if (enable_audio_effects and self.audio_effects_manager) else "单轨音频"
+            character_info = "已启用" if enable_character_intro else "未启用"
+
+            info = f"""🎬 增强版视频合成完成
+📁 输出路径: {video_path}
+📊 视频规格: {width}x{height}@{fps}fps
+🎵 音频系统: {audio_tracks_info}
+👤 主角动画: {character_info}
+📈 总时长: {total_duration:.2f}秒
+🎞️ 总帧数: {total_frames}"""
+
+            print("✅ 增强版视频合成完成！")
+            return (video_path, info)
+
+        except Exception as e:
+            error_msg = f"❌ 增强版视频合成失败: {str(e)}"
+            print(error_msg)
+            return ("", error_msg)
+
+    def _combine_audio_with_effects(self, audio_list, total_duration, bg_volume, opening_volume, voice_volume):
+        """
+        3轨音频合成：语音 + 背景音乐 + 开场音效
+        """
+        try:
+            # 1. 合成主音轨（语音）
+            voice_waveforms = []
+            sample_rate = None
+
+            for audio_dict in audio_list:
+                waveform = audio_dict["waveform"]
+                if len(waveform.shape) == 3:
+                    waveform = waveform[0]  # 移除batch维度
+                voice_waveforms.append(waveform)
+                sample_rate = audio_dict["sample_rate"]
+
+            # 拼接语音
+            voice_combined = torch.cat(voice_waveforms, dim=1)
+            # 应用语音音量
+            voice_combined = voice_combined * voice_volume
+
+            print(f"🎤 主音轨：{voice_combined.shape[1]/sample_rate:.2f}秒，音量{voice_volume*100:.0f}%")
+
+            # 2. 加载背景音乐
+            bg_music_path = self.audio_effects_manager.get_background_music()
+            if bg_music_path:
+                bg_waveform, bg_sample_rate = torchaudio.load(bg_music_path)
+
+                # 重采样到目标采样率
+                if bg_sample_rate != sample_rate:
+                    resampler = torchaudio.transforms.Resample(bg_sample_rate, sample_rate)
+                    bg_waveform = resampler(bg_waveform)
+
+                # 循环背景音乐以匹配总时长
+                bg_length_needed = int(total_duration * sample_rate)
+                bg_current_length = bg_waveform.shape[1]
+
+                if bg_length_needed > bg_current_length:
+                    # 需要循环
+                    repeats = (bg_length_needed // bg_current_length) + 1
+                    bg_waveform = bg_waveform.repeat(1, repeats)
+
+                # 裁剪到精确长度
+                bg_waveform = bg_waveform[:, :bg_length_needed]
+
+                # 应用背景音乐音量
+                bg_waveform = bg_waveform * bg_volume
+
+                # 转换为单声道（如果需要）
+                if bg_waveform.shape[0] == 2:
+                    bg_waveform = bg_waveform.mean(dim=0, keepdim=True)
+
+                print(f"🎼 背景音乐：{bg_waveform.shape[1]/sample_rate:.2f}秒，音量{bg_volume*100:.0f}%")
+            else:
+                # 创建静音背景
+                bg_waveform = torch.zeros(1, voice_combined.shape[1])
+                print("🔇 背景音乐：无可用文件，使用静音")
+
+            # 3. 加载开场音效
+            opening_path = self.audio_effects_manager.get_opening_sound()
+            if opening_path:
+                opening_waveform, opening_sample_rate = torchaudio.load(opening_path)
+
+                # 重采样到目标采样率
+                if opening_sample_rate != sample_rate:
+                    resampler = torchaudio.transforms.Resample(opening_sample_rate, sample_rate)
+                    opening_waveform = resampler(opening_waveform)
+
+                # 应用开场音效音量
+                opening_waveform = opening_waveform * opening_volume
+
+                # 转换为单声道（如果需要）
+                if opening_waveform.shape[0] == 2:
+                    opening_waveform = opening_waveform.mean(dim=0, keepdim=True)
+
+                # 创建开场音效轨（只在开头播放）
+                opening_track = torch.zeros(1, voice_combined.shape[1])
+                opening_length = min(opening_waveform.shape[1], opening_track.shape[1])
+                opening_track[:, :opening_length] = opening_waveform[:, :opening_length]
+
+                print(f"🎺 开场音效：{opening_waveform.shape[1]/sample_rate:.2f}秒，音量{opening_volume*100:.0f}%")
+            else:
+                opening_track = torch.zeros(1, voice_combined.shape[1])
+                print("🔇 开场音效：无可用文件，使用静音")
+
+            # 4. 混合3轨音频
+            # 确保所有轨道长度一致
+            min_length = min(voice_combined.shape[1], bg_waveform.shape[1], opening_track.shape[1])
+
+            voice_combined = voice_combined[:, :min_length]
+            bg_waveform = bg_waveform[:, :min_length]
+            opening_track = opening_track[:, :min_length]
+
+            # 混合音频
+            final_audio = voice_combined + bg_waveform + opening_track
+
+            # 防止音频剪切（简单压缩）
+            max_val = torch.max(torch.abs(final_audio))
+            if max_val > 1.0:
+                final_audio = final_audio / max_val * 0.95
+                print(f"🔧 音频压缩：峰值从{max_val:.2f}压缩到0.95")
+
+            # 5. 保存混合音频
+            temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+            torchaudio.save(temp_file.name, final_audio, sample_rate)
+            temp_file.close()
+
+            print(f"✅ 3轨音频合成完成：{final_audio.shape[1]/sample_rate:.2f}秒")
+            return temp_file.name
+
+        except Exception as e:
+            print(f"❌ 3轨音频合成失败: {e}")
+            # 回退到简单音频合成
+            return self._combine_audio_simple(audio_list, voice_volume)
+
+    def _combine_audio_simple(self, audio_list, voice_volume=1.0):
+        """简单音频合成（单轨）"""
+        waveforms = []
+        sample_rate = None
+
+        for audio_dict in audio_list:
+            waveform = audio_dict["waveform"]
+            if len(waveform.shape) == 3:
+                waveform = waveform[0]  # 移除batch维度
+
+            waveforms.append(waveform * voice_volume)
+            sample_rate = audio_dict["sample_rate"]
+
+        # 拼接音频
+        combined_waveform = torch.cat(waveforms, dim=1)
+
+        # 保存为临时文件
+        temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        torchaudio.save(temp_file.name, combined_waveform, sample_rate)
+        temp_file.close()
+
+        return temp_file.name
+
+    def _get_timestamp(self):
+        """获取时间戳"""
+        import time
+        return str(int(time.time()))
+
+# 节点映射
+NODE_CLASS_MAPPINGS = {
+    "EnhancedVideoComposer": EnhancedVideoComposer
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "EnhancedVideoComposer": "🎬 增强视频合成器（3轨音频）"
+}

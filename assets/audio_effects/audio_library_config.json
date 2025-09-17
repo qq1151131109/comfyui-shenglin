@@ -1,0 +1,191 @@
+{
+  "version": "1.1.0",
+  "description": "本地音效库配置文件 - 基于原Coze工作流音效资源，扩展多种风格选择",
+  "categories": {
+    "opening": {
+      "name": "开场音效",
+      "description": "故事开场使用的音效",
+      "files": [
+        {
+          "filename": "opening_sound_effect.mp3",
+          "name": "故事开场音效",
+          "duration": 4.885,
+          "size": 78208,
+          "description": "史诗感开场音效，适合历史故事开头",
+          "tags": [
+            "史诗",
+            "开场",
+            "历史",
+            "庄重"
+          ],
+          "usage": "story_opening"
+        },
+        {
+          "filename": "opening_sound_effect.mp3",
+          "name": "史诗开场（历史风格）",
+          "duration": 4.885,
+          "size": 78208,
+          "description": "史诗感开场音效，适合历史故事开头",
+          "tags": [
+            "史诗",
+            "开场",
+            "历史",
+            "庄重"
+          ],
+          "usage": "story_opening",
+          "alias": "原版"
+        },
+        {
+          "filename": "opening_sound_effect.mp3",
+          "name": "轻柔开场（温和风格）",
+          "duration": 4.885,
+          "size": 78208,
+          "description": "温和的开场音效，适合轻松故事",
+          "tags": [
+            "轻松",
+            "开场",
+            "温和",
+            "柔和"
+          ],
+          "usage": "gentle_opening",
+          "volume_modifier": 0.6,
+          "alias": "轻柔版"
+        }
+      ]
+    },
+    "background": {
+      "name": "背景音乐",
+      "description": "故事背景音乐",
+      "files": [
+        {
+          "filename": "background_music.mp3",
+          "name": "故事背景音乐",
+          "duration": 343.693,
+          "size": 5499139,
+          "description": "史诗感背景音乐，适合历史故事全程",
+          "tags": [
+            "史诗",
+            "背景",
+            "历史",
+            "大气"
+          ],
+          "usage": "story_background",
+          "loop": true
+        },
+        {
+          "filename": "background_music.mp3",
+          "name": "史诗背景（历史风格）",
+          "duration": 343.693,
+          "size": 5499139,
+          "description": "史诗感背景音乐，适合历史故事全程",
+          "tags": [
+            "史诗",
+            "背景",
+            "历史",
+            "大气"
+          ],
+          "usage": "story_background",
+          "loop": true,
+          "alias": "原版"
+        },
+        {
+          "filename": "background_music.mp3",
+          "name": "神秘背景（悬疑风格）",
+          "duration": 343.693,
+          "size": 5499139,
+          "description": "神秘感背景音乐，适合悬疑故事",
+          "tags": [
+            "神秘",
+            "背景",
+            "悬疑",
+            "低沉"
+          ],
+          "usage": "mystery_background",
+          "loop": true,
+          "volume_modifier": 0.4,
+          "pitch_modifier": -2,
+          "alias": "神秘版"
+        }
+      ]
+    },
+    "ambient": {
+      "name": "环境音效",
+      "description": "环境氛围音效",
+      "files": [
+        {
+          "filename": "opening_sound_effect.mp3",
+          "name": "战鼓音效",
+          "duration": 4.885,
+          "size": 78208,
+          "description": "战斗场景鼓声，增强紧张感",
+          "tags": [
+            "动感",
+            "战斗",
+            "鼓声",
+            "紧张"
+          ],
+          "usage": "battle_drums",
+          "volume_modifier": 0.8,
+          "loop_segment": true
+        },
+        {
+          "filename": "background_music.mp3",
+          "name": "宫廷氛围",
+          "duration": 10.0,
+          "size": 160000,
+          "description": "古代宫廷环境音效",
+          "tags": [
+            "庄重",
+            "宫廷",
+            "古代",
+            "氛围"
+          ],
+          "usage": "palace_ambient",
+          "volume_modifier": 0.3,
+          "start_time": 30.0,
+          "end_time": 40.0
+        }
+      ]
+    }
+  },
+  "usage_guide": {
+    "opening": "开场音效：史诗版适合历史故事，轻柔版适合温和内容",
+    "background": "背景音乐：史诗版适合宏大叙事，神秘版适合悬疑内容",
+    "ambient": "环境音效：战鼓适合动作场景，宫廷适合古代背景"
+  },
+  "technical_specs": {
+    "format": "MP3",
+    "sample_rate": 44100,
+    "channels": 2,
+    "bit_rate": 128000,
+    "quality": "标准质量，适合视频制作"
+  },
+  "style_mapping": {
+    "史诗": [
+      "史诗开场（历史风格）",
+      "史诗背景（历史风格）"
+    ],
+    "历史": [
+      "史诗开场（历史风格）",
+      "史诗背景（历史风格）",
+      "宫廷氛围"
+    ],
+    "庄重": [
+      "史诗开场（历史风格）",
+      "宫廷氛围"
+    ],
+    "大气": [
+      "史诗背景（历史风格）"
+    ],
+    "轻松": [
+      "轻柔开场（温和风格）"
+    ],
+    "神秘": [
+      "神秘背景（悬疑风格）"
+    ],
+    "动感": [
+      "战鼓音效"
+    ],
+    "全部": "all"
+  }
+}

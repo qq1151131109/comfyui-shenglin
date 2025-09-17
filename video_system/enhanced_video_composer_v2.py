@@ -1,6 +1,7 @@
 """
-视频合成器
-支持图像动画、音效库、字体标题等全面功能
+视频合成器-基于图片
+将静态图片转换为动态视频，支持图像动画、音效库、字体标题等全面功能
+适用于从图片生成视频的场景
 """
 
 import os
@@ -579,5 +580,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "EnhancedVideoComposerV2": "🎵 视频合成器"
+    "EnhancedVideoComposerV2": "🖼️ 视频合成器-基于图片"
 }
