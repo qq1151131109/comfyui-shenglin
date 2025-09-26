@@ -274,7 +274,7 @@ class AIVideoComposer:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("video_path", "info")
     FUNCTION = "create_ai_video"
-    CATEGORY = "🎥 Shenglin Video System"
+    CATEGORY = "🔥 Shenglin/视频处理"
 
     def create_ai_video(self, work_mode, audio_list, api_key, scene_video_prompts, fps=30,
                        width=720, height=1280, output_format="mp4", quality="medium",

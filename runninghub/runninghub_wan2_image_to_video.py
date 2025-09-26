@@ -99,7 +99,7 @@ class RunningHubWan2ImageToVideo:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("video_paths", "info")
     FUNCTION = "generate_videos"
-    CATEGORY = "🎨 RunningHub"
+    CATEGORY = "🔥 Shenglin/图像生成"
 
     def generate_videos(self, input_images, prompts, api_key, audio_list,
                        steps=6, cfg_scale=7.5, seed=-1, motion_strength=0.8,
