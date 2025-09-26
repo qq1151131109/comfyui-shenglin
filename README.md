@@ -112,16 +112,6 @@ git clone https://github.com/qq1151131109/comfyui-shenglin.git
   - **作用**: 主要占位符，会被`prompt_list`中的提示词逐一替换
   - **注意**: 必须与工作流JSON中的占位符完全一致
 
-- **`replacement_config`** (多行文本)
-  - **作用**: 额外替换配置，用于替换其他固定参数
-  - **格式**: 每行`占位符=值`
-  - **示例**:
-    ```
-    {{NEGATIVE}}=blurry, low quality
-    {{STEPS}}=30
-    {{CFG}}=7.5
-    {{SEED}}=12345
-    ```
 
 - **`timeout_seconds`** (整数，默认: 300，范围: 60-1800)
   - **作用**: 单个任务超时时间（秒）
@@ -158,21 +148,17 @@ cute animal
 amazing architecture
 ```
 
-#### 高级用法 - 多参数替换
+#### 高级用法 - 固定参数工作流
+如果需要固定某些参数，直接在工作流JSON中写死即可：
 ```json
-// 工作流中使用多个占位符:
 {
   "positive_prompt": "{{PROMPT}}",
-  "negative_prompt": "{{NEGATIVE}}",
-  "steps": {{STEPS}},
-  "cfg_scale": {{CFG}}
+  "negative_prompt": "bad quality, blurry, distorted",
+  "steps": 25,
+  "cfg_scale": 7.5
 }
-
-// replacement_config:
-{{NEGATIVE}}=bad quality, blurry, distorted
-{{STEPS}}=25
-{{CFG}}=7.5
 ```
+这样所有任务都会使用相同的负面提示词、步数和CFG值。
 
 ### 实际应用场景
 

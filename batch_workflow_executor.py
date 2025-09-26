@@ -29,7 +29,6 @@ class BatchWorkflowExecutorNode:
             },
             "optional": {
                 "placeholder": ("STRING", {"default": "{{PROMPT}}", "tooltip": "主要占位符，将被提示词列表替换"}),
-                "replacement_config": ("STRING", {"multiline": True, "default": "", "tooltip": "额外替换配置，格式: placeholder=value，每行一个"}),
                 "timeout_seconds": ("INT", {"default": 300, "min": 60, "max": 1800, "tooltip": "单个任务超时时间（秒）"}),
             }
         }
@@ -62,41 +61,19 @@ class BatchWorkflowExecutorNode:
                 prompts.append(line)
         return prompts
 
-    def parse_replacement_config(self, config_text: str) -> Dict[str, str]:
-        """解析额外替换配置"""
-        replacements = {}
-        if not config_text.strip():
-            return replacements
 
-        for line in config_text.strip().split('\n'):
-            line = line.strip()
-            if line and '=' in line:
-                key, value = line.split('=', 1)
-                replacements[key.strip()] = value.strip()
-
-        return replacements
-
-    def replace_workflow_placeholders(self, workflow: Dict, placeholder: str, value: str,
-                                    extra_replacements: Dict[str, str] = None) -> Dict:
-        """在整个工作流JSON中替换所有占位符"""
+    def replace_workflow_placeholders(self, workflow: Dict, placeholder: str, value: str) -> Dict:
+        """在整个工作流JSON中替换占位符"""
         # 将工作流转换为字符串进行全局替换
         workflow_str = json.dumps(workflow, ensure_ascii=False)
 
-        # 替换主要占位符
+        # 替换占位符
         main_count = workflow_str.count(placeholder)
         if main_count > 0:
             workflow_str = workflow_str.replace(placeholder, value)
-            logger.info(f"替换主要占位符 '{placeholder}' 为 '{value[:50]}...' (共{main_count}处)")
+            logger.info(f"替换占位符 '{placeholder}' 为 '{value[:50]}...' (共{main_count}处)")
         else:
-            logger.warning(f"工作流中未找到主要占位符 '{placeholder}'")
-
-        # 替换额外占位符
-        if extra_replacements:
-            for old_placeholder, new_value in extra_replacements.items():
-                count = workflow_str.count(old_placeholder)
-                if count > 0:
-                    workflow_str = workflow_str.replace(old_placeholder, new_value)
-                    logger.info(f"替换额外占位符 '{old_placeholder}' 为 '{new_value[:30]}...' (共{count}处)")
+            logger.warning(f"工作流中未找到占位符 '{placeholder}'")
 
         # 转换回字典
         workflow_copy = json.loads(workflow_str)
@@ -172,11 +149,10 @@ class BatchWorkflowExecutorNode:
     async def execute_single_task(self, session: aiohttp.ClientSession,
                                 available_instances: List[str], workflow: Dict,
                                 prompt: str, task_id: int, placeholder: str,
-                                extra_replacements: Dict[str, str], timeout_seconds: int,
-                                retry_count: int, enable_retry: bool) -> Dict:
+                                timeout_seconds: int, retry_count: int, enable_retry: bool) -> Dict:
         """执行单个任务"""
         # 替换工作流中的占位符
-        modified_workflow = self.replace_workflow_placeholders(workflow, placeholder, prompt, extra_replacements)
+        modified_workflow = self.replace_workflow_placeholders(workflow, placeholder, prompt)
 
         # 尝试在可用实例上执行
         for attempt in range(retry_count + 1 if enable_retry else 1):
@@ -211,8 +187,7 @@ class BatchWorkflowExecutorNode:
         }
 
     def batch_execute(self, workflow_json: str, comfyui_instances: str, prompt_list: str,
-                     placeholder: str = "{{PROMPT}}", replacement_config: str = "",
-                     timeout_seconds: int = 300) -> Tuple[str, str]:
+                     placeholder: str = "{{PROMPT}}", timeout_seconds: int = 300) -> Tuple[str, str]:
         """批量执行工作流"""
 
         try:
@@ -220,7 +195,6 @@ class BatchWorkflowExecutorNode:
             workflow = json.loads(workflow_json)
             instances = self.parse_instances(comfyui_instances)
             prompts = self.parse_prompts(prompt_list)
-            extra_replacements = self.parse_replacement_config(replacement_config)
 
             if not instances:
                 return ("错误: 没有提供有效的ComfyUI实例", "{}")
@@ -229,8 +203,6 @@ class BatchWorkflowExecutorNode:
                 return ("错误: 没有提供有效的提示词", "{}")
 
             logger.info(f"开始批量执行: {len(prompts)} 个任务，{len(instances)} 个实例")
-            if extra_replacements:
-                logger.info(f"额外替换配置: {list(extra_replacements.keys())}")
 
             # 异步执行批量任务
             loop = asyncio.new_event_loop()
@@ -244,8 +216,7 @@ class BatchWorkflowExecutorNode:
                 max_concurrent = len(instances)
                 results = loop.run_until_complete(
                     self._async_batch_execute(workflow, instances, prompts, placeholder,
-                                            extra_replacements, max_concurrent, timeout_seconds,
-                                            enable_retry, retry_count)
+                                            max_concurrent, timeout_seconds, enable_retry, retry_count)
                 )
             finally:
                 loop.close()
@@ -290,8 +261,7 @@ class BatchWorkflowExecutorNode:
             return (f"执行失败: {str(e)}", "{}")
 
     async def _async_batch_execute(self, workflow: Dict, instances: List[str],
-                                 prompts: List[str], placeholder: str,
-                                 extra_replacements: Dict[str, str], max_concurrent: int,
+                                 prompts: List[str], placeholder: str, max_concurrent: int,
                                  timeout_seconds: int, enable_retry: bool, retry_count: int) -> List[Dict]:
         """异步批量执行"""
 
@@ -319,7 +289,7 @@ class BatchWorkflowExecutorNode:
                 async with semaphore:
                     return await self.execute_single_task(
                         session, available_instances, workflow, prompt, task_id,
-                        placeholder, extra_replacements, timeout_seconds, retry_count, enable_retry
+                        placeholder, timeout_seconds, retry_count, enable_retry
                     )
 
             # 并发执行所有任务
