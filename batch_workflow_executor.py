@@ -30,7 +30,6 @@ class BatchWorkflowExecutorNode:
             "optional": {
                 "placeholder": ("STRING", {"default": "{{PROMPT}}", "tooltip": "主要占位符，将被提示词列表替换"}),
                 "replacement_config": ("STRING", {"multiline": True, "default": "", "tooltip": "额外替换配置，格式: placeholder=value，每行一个"}),
-                "max_concurrent": ("INT", {"default": 3, "min": 1, "max": 10, "tooltip": "最大并发执行数"}),
                 "timeout_seconds": ("INT", {"default": 300, "min": 60, "max": 1800, "tooltip": "单个任务超时时间（秒）"}),
             }
         }
@@ -213,7 +212,7 @@ class BatchWorkflowExecutorNode:
 
     def batch_execute(self, workflow_json: str, comfyui_instances: str, prompt_list: str,
                      placeholder: str = "{{PROMPT}}", replacement_config: str = "",
-                     max_concurrent: int = 3, timeout_seconds: int = 300) -> Tuple[str, str]:
+                     timeout_seconds: int = 300) -> Tuple[str, str]:
         """批量执行工作流"""
 
         try:
@@ -241,6 +240,8 @@ class BatchWorkflowExecutorNode:
                 # 内部使用固定的重试设置，后台自动重试
                 enable_retry = True
                 retry_count = 2
+                # 根据服务器数量自动决定并发数，避免过载单个服务器
+                max_concurrent = len(instances)
                 results = loop.run_until_complete(
                     self._async_batch_execute(workflow, instances, prompts, placeholder,
                                             extra_replacements, max_concurrent, timeout_seconds,
