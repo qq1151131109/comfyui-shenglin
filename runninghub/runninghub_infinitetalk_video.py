@@ -137,7 +137,7 @@ class RunningHubInfiniteTalkVideo:
         self.api_base = "https://www.runninghub.cn"
         self.workflow_id = "1960943620918579202"
         self.upload_timeout = 300  # 5分钟上传超时
-        self.task_timeout = 600    # 10分钟任务超时
+        self.task_timeout = 1800   # 30分钟任务超时
 
     async def upload_file_async(self, session: aiohttp.ClientSession, file_path: str, api_key: str, file_type: str) -> Optional[str]:
         """异步上传文件到RunningHub"""
