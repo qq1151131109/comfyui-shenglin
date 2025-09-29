@@ -50,15 +50,39 @@
 - **内容导出器** - 多格式内容导出(JSON/CSV/HTML/Markdown)
 - **选定话题查看器** - 特定话题内容详情和写作素材
 
+### 🎤 Whisper语音识别套件 (4-7个节点)
+**基础语音识别：**
+- **Apply Whisper** - Whisper语音转文字，支持多语言识别
+- **Add Subtitles To Frames** - 为视频帧添加字幕
+- **Add Subtitles To Background** - 为背景图片添加字幕
+- **Resize Cropped Subtitles** - 调整裁切后的字幕尺寸
+
+**增强功能（可选）：**
+- **WhisperX 强制对齐** - 高精度语音对齐，需要WhisperX依赖
+- **Add Subtitles (Enhanced)** - 增强版字幕添加，支持更多样式
+- **Render TikTok Captions (Remotion V2)** - TikTok风格字幕渲染
+
+### ✂️ 视频编辑工具套件 (2个节点)
+- **视频智能裁切** - 基于内容的智能视频裁切和预览
+- **视频合并工具** - 多个视频文件的无缝合并
+
+### 🤖 LLM大语言模型集成 (可选)
+- **智能集成** - 自动检测并集成comfyui_LLM_party功能
+- **轻量级设计** - 不依赖LLM Party也能正常运行
+- **完整功能** - 支持所有LLM Party的节点和功能
+
 ### 🔄 批量工作流执行器 (1个节点)
 - **批量工作流执行器** - 分布式批量执行ComfyUI工作流，支持占位符替换和多实例并行处理
 
 ## 🚀 特色功能
 
-- **完整AI工作流生态**: 图生视频(Wan2.2) + 双轨制视频合成器 + 字体音效库 + RSS智能分析 + 分布式批量执行
+- **完整AI工作流生态**: 图生视频(Wan2.2) + 语音识别(Whisper) + 智能分析(RSS) + 视频编辑 + 大语言模型 + 分布式执行
 - **RunningHub深度集成**: 13个专业节点，覆盖文生图、图生视频、文件管理全流程
 - **MiniMax TTS专业版**: 14种音色选择，批量并发处理，支持语速音调精细调节
+- **Whisper语音识别**: 多语言支持，高精度对齐，TikTok风格字幕渲染
 - **RSS智能处理**: 11个节点构建完整RSS内容分析链，从收集到话题聚类到写作素材
+- **视频编辑工具**: 智能裁切和无缝合并，支持批量处理和实时预览
+- **LLM模型集成**: 轻量级集成设计，自动检测comfyui_LLM_party功能
 - **机器学习聚类**: TF-IDF + K-means/DBSCAN算法，智能话题分类和内容去重
 - **音效库系统**: 内置背景音乐和开场音效，支持自定义音效导入和分类管理
 - **内存优化算法**: 视频处理使用流式算法，支持长视频生成避免OOM问题
@@ -78,8 +102,16 @@ git clone https://github.com/qq1151131109/comfyui-shenglin.git
 ```bash
 cd comfyui-shenglin
 pip install -r requirements.txt
-# RSS模块需要额外依赖
-pip install -r rss_requirements.txt
+```
+
+**可选增强功能依赖：**
+```bash
+# Whisper增强功能 (WhisperX对齐、Remotion字幕)
+pip install whisperx
+pip install remotion
+
+# LLM大语言模型功能 (需要先安装comfyui_LLM_party)
+# 请参考 https://github.com/heshengtao/comfyui_LLM_party
 ```
 
 3. 重启ComfyUI即可使用

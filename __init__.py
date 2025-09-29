@@ -38,6 +38,15 @@ except Exception as e:
 # RSS内容处理工具集
 from .rss_tools import RSS_NODE_CLASS_MAPPINGS, RSS_NODE_DISPLAY_NAME_MAPPINGS
 
+# Whisper语音识别和字幕生成工具集
+from .whisper_tools import WHISPER_NODE_CLASS_MAPPINGS, WHISPER_NODE_DISPLAY_NAME_MAPPINGS
+
+# 视频编辑工具集
+from .video_editing_tools import VIDEO_EDITING_NODE_CLASS_MAPPINGS, VIDEO_EDITING_NODE_DISPLAY_NAME_MAPPINGS
+
+# LLM大语言模型工具集（轻量级集成）
+from .llm_tools import LLM_NODE_CLASS_MAPPINGS, LLM_NODE_DISPLAY_NAME_MAPPINGS, LLM_PARTY_AVAILABLE
+
 # 节点映射
 NODE_CLASS_MAPPINGS = {
     # RunningHub节点
@@ -70,6 +79,15 @@ NODE_CLASS_MAPPINGS = {
 
     # RSS内容处理节点
     **RSS_NODE_CLASS_MAPPINGS,
+
+    # Whisper语音识别和字幕生成节点
+    **WHISPER_NODE_CLASS_MAPPINGS,
+
+    # 视频编辑工具节点
+    **VIDEO_EDITING_NODE_CLASS_MAPPINGS,
+
+    # LLM大语言模型节点（如果可用）
+    **(LLM_NODE_CLASS_MAPPINGS if LLM_PARTY_AVAILABLE else {}),
 }
 
 # 节点显示名称映射
@@ -104,6 +122,15 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # RSS内容处理节点
     **RSS_NODE_DISPLAY_NAME_MAPPINGS,
+
+    # Whisper语音识别和字幕生成节点
+    **WHISPER_NODE_DISPLAY_NAME_MAPPINGS,
+
+    # 视频编辑工具节点
+    **VIDEO_EDITING_NODE_DISPLAY_NAME_MAPPINGS,
+
+    # LLM大语言模型节点（如果可用）
+    **(LLM_NODE_DISPLAY_NAME_MAPPINGS if LLM_PARTY_AVAILABLE else {}),
 }
 
 # Web目录
@@ -112,12 +139,21 @@ WEB_DIRECTORY = "./video_system/web"
 # 版本信息
 __version__ = "1.0.0"
 __author__ = "Shenglin"
-__description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成、MiniMax TTS、视频合成工具链、RSS内容处理套件、批量工作流执行器"
+__description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成、MiniMax TTS、视频合成工具链、RSS内容处理套件、批量工作流执行器、Whisper语音识别、视频编辑工具、LLM大语言模型"
 
 # ComfyUI必需的导出
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 
 print("🎉 ComfyUI Shenglin 节点集合加载完成!")
-print(f"📝 RunningHub节点: 13个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个 | 批量工作流节点: 1个 | RSS处理节点: 11个")
+llm_count = len(LLM_NODE_CLASS_MAPPINGS) if LLM_PARTY_AVAILABLE else 0
+whisper_count = len(WHISPER_NODE_CLASS_MAPPINGS)
+video_edit_count = len(VIDEO_EDITING_NODE_CLASS_MAPPINGS)
+
+print(f"📝 RunningHub节点: 13个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个 | 批量工作流节点: 1个")
+print(f"📰 RSS处理节点: 11个 | 🎤 Whisper节点: {whisper_count}个 | ✂️ 视频编辑节点: {video_edit_count}个")
+if LLM_PARTY_AVAILABLE:
+    print(f"🤖 LLM节点: {llm_count}个 (已集成)")
+else:
+    print("🤖 LLM节点: 未安装 (需要comfyui_LLM_party)")
 print(f"🚀 总计: {len(NODE_CLASS_MAPPINGS)} 个自定义节点")
-print("🎬 完整AI工作流生态: 图生视频 + 双轨制合成器 + 分布式批量执行 + RSS智能分析")
+print("🎬 完整AI工作流生态: 图生视频 + 语音识别 + 智能分析 + 视频编辑 + 大语言模型")

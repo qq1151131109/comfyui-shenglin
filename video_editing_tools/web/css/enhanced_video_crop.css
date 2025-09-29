@@ -1,0 +1,299 @@
+/**
+ * 智能视频裁切节点的CSS样式
+ */
+
+/* 节点容器样式 */
+.comfy-node.enhanced-video-crop {
+    min-width: 350px !important;
+    min-height: 400px !important;
+}
+
+/* 预览区域样式 */
+.video-crop-preview {
+    background-color: #2a2a2a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    margin: 5px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.video-crop-preview canvas {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+    margin: 0 auto;
+}
+
+.video-crop-preview .placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 14px;
+    height: 200px;
+}
+
+/* 预览按钮样式 */
+.video-crop-button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin: 5px 0;
+    width: 100%;
+}
+
+.video-crop-button:hover {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.video-crop-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.video-crop-button:disabled {
+    background: #555;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 信息面板样式 */
+.video-crop-info {
+    background-color: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 5px 0;
+    font-size: 12px;
+    color: #ccc;
+}
+
+.video-crop-info .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.video-crop-info .info-row:last-child {
+    margin-bottom: 0;
+}
+
+.video-crop-info .info-label {
+    color: #888;
+}
+
+.video-crop-info .info-value {
+    color: #fff;
+    font-weight: bold;
+}
+
+/* 参数控制区域样式 */
+.video-crop-controls {
+    background-color: #242424;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 5px 0;
+}
+
+.video-crop-controls .control-group {
+    margin-bottom: 10px;
+}
+
+.video-crop-controls .control-group:last-child {
+    margin-bottom: 0;
+}
+
+.video-crop-controls .control-label {
+    display: block;
+    color: #ccc;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.video-crop-controls .control-input {
+    width: 100%;
+    background-color: #333;
+    border: 1px solid #555;
+    border-radius: 3px;
+    color: #fff;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.video-crop-controls .control-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+/* 比例选择器样式 */
+.aspect-ratio-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 5px 0;
+}
+
+.aspect-ratio-option {
+    background-color: #333;
+    border: 1px solid #555;
+    border-radius: 3px;
+    color: #ccc;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    text-align: center;
+    min-width: 50px;
+}
+
+.aspect-ratio-option:hover {
+    background-color: #444;
+    border-color: #666;
+}
+
+.aspect-ratio-option.active {
+    background-color: #667eea;
+    border-color: #667eea;
+    color: #fff;
+}
+
+/* 裁切框样式（用于canvas绘制时的参考） */
+.crop-frame {
+    position: absolute;
+    border: 2px solid #ff0000;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.crop-frame::before,
+.crop-frame::after {
+    content: '';
+    position: absolute;
+    background-color: #ff0000;
+}
+
+/* 左上角标记 */
+.crop-frame::before {
+    top: -2px;
+    left: -2px;
+    width: 20px;
+    height: 4px;
+}
+
+.crop-frame::after {
+    top: -2px;
+    left: -2px;
+    width: 4px;
+    height: 20px;
+}
+
+/* 加载动画 */
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #555;
+    border-radius: 50%;
+    border-top-color: #667eea;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 工具提示样式 */
+.video-crop-tooltip {
+    position: absolute;
+    background-color: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 11px;
+    color: #ccc;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.video-crop-tooltip.show {
+    opacity: 1;
+}
+
+/* 响应式样式 */
+@media (max-width: 400px) {
+    .video-crop-preview {
+        height: 150px;
+    }
+
+    .aspect-ratio-selector {
+        flex-direction: column;
+    }
+
+    .aspect-ratio-option {
+        min-width: unset;
+    }
+}
+
+/* 深色主题适配 */
+.dark-theme .video-crop-preview {
+    background-color: #1a1a1a;
+    border-color: #333;
+}
+
+.dark-theme .video-crop-button {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+}
+
+.dark-theme .video-crop-button:hover {
+    background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
+}
+
+.dark-theme .video-crop-info {
+    background-color: #0d1117;
+    border-color: #30363d;
+}
+
+.dark-theme .video-crop-controls {
+    background-color: #161b22;
+    border-color: #30363d;
+}
+
+.dark-theme .control-input {
+    background-color: #21262d;
+    border-color: #30363d;
+    color: #f0f6fc;
+}
+
+.dark-theme .aspect-ratio-option {
+    background-color: #21262d;
+    border-color: #30363d;
+    color: #8b949e;
+}
+
+.dark-theme .aspect-ratio-option:hover {
+    background-color: #30363d;
+    border-color: #484f58;
+}
+
+.dark-theme .aspect-ratio-option.active {
+    background-color: #0969da;
+    border-color: #0969da;
+    color: #f0f6fc;
+}
