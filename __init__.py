@@ -8,6 +8,7 @@ from .runninghub.batch_runninghub_text_to_image import RunningHubFluxTextToImage
 from .runninghub.runninghub_qwen_advanced import RunningHubQwenAdvanced
 from .runninghub.runninghub_qwen_text_to_image import RunningHubQwenTextToImage
 from .runninghub.runninghub_wan2_image_to_video import RunningHubWan2ImageToVideo
+from .runninghub.runninghub_infinitetalk_video import RunningHubInfiniteTalkVideo
 from .runninghub.rh_execute_node import ExecuteNode
 from .runninghub.rh_settings_node import SettingsNode
 from .runninghub.rh_node_info_list import NodeInfoListNode
@@ -54,6 +55,7 @@ NODE_CLASS_MAPPINGS = {
     "RunningHubQwenAdvanced": RunningHubQwenAdvanced,
     "RunningHubQwenTextToImage": RunningHubQwenTextToImage,
     "RunningHubWan2ImageToVideo": RunningHubWan2ImageToVideo,
+    "RunningHubInfiniteTalkVideo": RunningHubInfiniteTalkVideo,
     "RHExecuteNode": ExecuteNode,
     "RHSettingsNode": SettingsNode,
     "RHNodeInfoListNode": NodeInfoListNode,
@@ -97,6 +99,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RunningHubQwenAdvanced": "🎨 RunningHub Qwen高级版",
     "RunningHubQwenTextToImage": "🎨 RunningHub Qwen文生图",
     "RunningHubWan2ImageToVideo": "🎬 RunningHub Wan2.2图生视频",
+    "RunningHubInfiniteTalkVideo": "🎭 RunningHub InfiniteTalk数字人",
     "RHExecuteNode": "⚙️ RH执行节点",
     "RHSettingsNode": "🔧 RH设置节点",
     "RHNodeInfoListNode": "📋 RH节点信息列表",
@@ -149,7 +152,7 @@ llm_count = len(LLM_NODE_CLASS_MAPPINGS) if LLM_PARTY_AVAILABLE else 0
 whisper_count = len(WHISPER_NODE_CLASS_MAPPINGS)
 video_edit_count = len(VIDEO_EDITING_NODE_CLASS_MAPPINGS)
 
-print(f"📝 RunningHub节点: 13个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个 | 批量工作流节点: 1个")
+print(f"📝 RunningHub节点: 14个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个 | 批量工作流节点: 1个")
 print(f"📰 RSS处理节点: 11个 | 🎤 Whisper节点: {whisper_count}个 | ✂️ 视频编辑节点: {video_edit_count}个")
 if LLM_PARTY_AVAILABLE:
     print(f"🤖 LLM节点: {llm_count}个 (已集成)")
