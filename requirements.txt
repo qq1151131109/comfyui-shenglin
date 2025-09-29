@@ -8,3 +8,12 @@ pillow
 requests
 ffmpeg-python
 opencv-python
+
+# RSS内容处理模块依赖
+feedparser
+newspaper4k
+nltk
+lxml
+scikit-learn
+jieba
+lxml_html_clean

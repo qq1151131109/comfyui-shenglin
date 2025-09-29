@@ -1,0 +1,9 @@
+feedparser
+newspaper4k
+nltk
+lxml
+requests
+scikit-learn
+jieba
+numpy
+lxml_html_clean

@@ -35,6 +35,9 @@ except Exception as e:
     BatchWorkflowExecutorNode = None
     BATCH_WORKFLOW_AVAILABLE = False
 
+# RSS内容处理工具集
+from .rss_tools import RSS_NODE_CLASS_MAPPINGS, RSS_NODE_DISPLAY_NAME_MAPPINGS
+
 # 节点映射
 NODE_CLASS_MAPPINGS = {
     # RunningHub节点
@@ -64,6 +67,9 @@ NODE_CLASS_MAPPINGS = {
 
     # 批量工作流节点
     **({"BatchWorkflowExecutorNode": BatchWorkflowExecutorNode} if BATCH_WORKFLOW_AVAILABLE else {}),
+
+    # RSS内容处理节点
+    **RSS_NODE_CLASS_MAPPINGS,
 }
 
 # 节点显示名称映射
@@ -95,6 +101,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # 批量工作流节点
     **({"BatchWorkflowExecutorNode": "🔄 批量工作流执行器"} if BATCH_WORKFLOW_AVAILABLE else {}),
+
+    # RSS内容处理节点
+    **RSS_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 # Web目录
@@ -103,12 +112,12 @@ WEB_DIRECTORY = "./video_system/web"
 # 版本信息
 __version__ = "1.0.0"
 __author__ = "Shenglin"
-__description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成、MiniMax TTS、视频合成工具链"
+__description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成、MiniMax TTS、视频合成工具链、RSS内容处理套件、批量工作流执行器"
 
 # ComfyUI必需的导出
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 
 print("🎉 ComfyUI Shenglin 节点集合加载完成!")
-print(f"📝 RunningHub节点: 13个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个 | 批量工作流节点: 1个")
+print(f"📝 RunningHub节点: 13个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个 | 批量工作流节点: 1个 | RSS处理节点: 11个")
 print(f"🚀 总计: {len(NODE_CLASS_MAPPINGS)} 个自定义节点")
-print("🎬 完整AI工作流生态: 图生视频 + 双轨制合成器 + 分布式批量执行")
+print("🎬 完整AI工作流生态: 图生视频 + 双轨制合成器 + 分布式批量执行 + RSS智能分析")
