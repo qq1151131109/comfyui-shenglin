@@ -36,7 +36,7 @@ class SinglePostDownloader:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("output_folder", "status")
     FUNCTION = "download_post"
-    CATEGORY = "🔥 Shenglin/视频下载"
+    CATEGORY = "🔥 Shenglin/素材上传与下载"
 
     def download_post(self, url, user_id, secret_key, media_types="video"):
         """提取并下载单个帖子"""

@@ -44,7 +44,7 @@ class BatchPostsDownloader:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("output_folder", "status")
     FUNCTION = "download_batch"
-    CATEGORY = "🔥 Shenglin/视频下载"
+    CATEGORY = "🔥 Shenglin/素材上传与下载"
 
     def download_batch(self, url, user_id, secret_key, media_types="video", max_videos=100):
         """批量提取并下载主页帖子"""

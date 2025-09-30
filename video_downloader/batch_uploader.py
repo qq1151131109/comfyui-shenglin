@@ -39,7 +39,7 @@ class BatchFileUploader:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("folder_path", "status")
     FUNCTION = "organize_uploaded_files"
-    CATEGORY = "🔥 Shenglin/视频下载"
+    CATEGORY = "🔥 Shenglin/素材上传与下载"
 
     def organize_uploaded_files(self, files, folder_prefix="uploaded", organize_files=True):
         """整理上传的文件到子文件夹"""
