@@ -21,7 +21,7 @@ class BatchFileUploader:
 
         return {
             "required": {
-                "upload": (sorted(files) if files else [""], {
+                "files": (sorted(files) if files else [""], {
                     "image_upload": True,
                     "tooltip": "点击📁按钮上传文件（支持多选）"
                 }),
@@ -37,7 +37,13 @@ class BatchFileUploader:
     FUNCTION = "organize_uploaded_files"
     CATEGORY = "🔥 Shenglin/素材上传与下载"
 
-    def organize_uploaded_files(self, upload, folder_prefix="uploaded"):
+    @classmethod
+    def IS_CHANGED(cls, files, folder_prefix):
+        # 每次都执行，因为可能有新上传的文件
+        import time
+        return time.time()
+
+    def organize_uploaded_files(self, files, folder_prefix="uploaded"):
         """整理上传的文件到子文件夹"""
 
         input_directory = folder_paths.get_input_directory()
