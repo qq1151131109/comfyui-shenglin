@@ -27,6 +27,13 @@ class BatchPostsDownloader:
                 "user_id": ("STRING", {"default": ""}),
                 "secret_key": ("STRING", {"default": ""}),
                 "media_types": (["all", "video", "image", "audio"], {"default": "video"}),
+                "max_videos": ("INT", {
+                    "default": 100,
+                    "min": 1,
+                    "max": 9999,
+                    "step": 1,
+                    "tooltip": "最大下载视频数量，默认100个"
+                }),
             }
         }
 
@@ -35,13 +42,12 @@ class BatchPostsDownloader:
     FUNCTION = "download_batch"
     CATEGORY = "🔥 Shenglin/视频下载"
 
-    def download_batch(self, url, user_id, secret_key, media_types="video"):
+    def download_batch(self, url, user_id, secret_key, media_types="video", max_videos=100):
         """批量提取并下载主页帖子"""
-        # 固定参数：质量最高、自动翻页、不限页数和帖子数、重试6次、延迟2秒
+        # 固定参数：质量最高、自动翻页、不限页数、重试6次、延迟2秒
         quality_priority = "highest"
         auto_pagination = True
         max_pages = 9999  # 实际不限制，设置一个很大的值
-        max_posts_per_page = 9999  # 实际不限制，设置一个很大的值
         retry_times = 6
         retry_delay = 2
         # 1. 验证参数
@@ -81,7 +87,7 @@ class BatchPostsDownloader:
                 status_msg = f"第 {pages_processed} 页提取失败，停止翻页\n"
                 status_msg += self._generate_summary(
                     username, pages_processed, total_posts,
-                    total_success, total_fail, output_folder, all_downloaded_files
+                    total_success, total_fail, output_folder, all_downloaded_files, max_videos
                 )
                 return (output_folder, status_msg)
 
@@ -141,6 +147,18 @@ class BatchPostsDownloader:
                 cursor = next_cursor
                 continue
 
+            # 检查是否已达到最大数量限制
+            remaining_count = max_videos - total_success
+            if remaining_count <= 0:
+                print(f"已达到最大下载数量限制 ({max_videos}个)，停止下载")
+                has_more = False
+                break
+
+            # 限制当前页下载数量，不超过剩余配额
+            if len(page_medias) > remaining_count:
+                print(f"当前页有 {len(page_medias)} 个媒体，但仅下载前 {remaining_count} 个（已达配额）")
+                page_medias = page_medias[:remaining_count]
+
             # 5. 下载当前页的媒体
             success, fail, files = self._download_medias(
                 page_medias, output_folder, username,
@@ -170,7 +188,7 @@ class BatchPostsDownloader:
         # 7. 生成最终报告
         status_msg = self._generate_summary(
             username, pages_processed, total_posts,
-            total_success, total_fail, output_folder, all_downloaded_files
+            total_success, total_fail, output_folder, all_downloaded_files, max_videos
         )
 
         return (output_folder, status_msg)
@@ -329,7 +347,7 @@ class BatchPostsDownloader:
         }
         return defaults.get(media_type, ".bin")
 
-    def _generate_summary(self, username, pages, total_posts, success, fail, output_folder, files):
+    def _generate_summary(self, username, pages, total_posts, success, fail, output_folder, files, max_videos=None):
         """生成下载报告"""
         msg = f"{'='*50}\n"
         msg += f"🎉 批量下载完成!\n"
@@ -338,6 +356,8 @@ class BatchPostsDownloader:
         msg += f"  作者: {username}\n"
         msg += f"  处理页数: {pages}页\n"
         msg += f"  处理帖子: {total_posts}个\n"
+        if max_videos:
+            msg += f"  数量限制: {max_videos}个\n"
         msg += f"  下载成功: {success}个\n"
         msg += f"  下载失败: {fail}个\n"
         msg += f"  成功率: {success/(success+fail)*100:.1f}%\n" if (success+fail) > 0 else f"  成功率: N/A\n"
