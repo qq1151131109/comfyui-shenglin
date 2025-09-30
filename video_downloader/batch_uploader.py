@@ -17,7 +17,7 @@ class BatchFileUploader:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "upload": ("STRING", {
+                "image": ("STRING", {
                     "default": "",
                     "multiline": False,
                     "image_upload": True,
@@ -37,12 +37,12 @@ class BatchFileUploader:
     CATEGORY = "🔥 Shenglin/素材上传与下载"
 
     @classmethod
-    def IS_CHANGED(cls, upload, folder_prefix):
+    def IS_CHANGED(cls, image, folder_prefix):
         # 每次都执行，因为可能有新上传的文件
         import time
         return time.time()
 
-    def organize_uploaded_files(self, upload, folder_prefix="uploaded"):
+    def organize_uploaded_files(self, image, folder_prefix="uploaded"):
         """整理上传的文件到子文件夹"""
 
         input_directory = folder_paths.get_input_directory()
