@@ -21,17 +21,13 @@ class BatchFileUploader:
 
         return {
             "required": {
-                "files": (sorted(files), {
+                "upload": (sorted(files) if files else [""], {
                     "image_upload": True,
-                    "tooltip": "点击上传文件（支持多选）"
+                    "tooltip": "点击📁按钮上传文件（支持多选）"
                 }),
                 "folder_prefix": ("STRING", {
                     "default": "uploaded",
-                    "tooltip": "文件夹名称前缀，后面会自动加上时间戳"
-                }),
-                "organize_files": ("BOOLEAN", {
-                    "default": True,
-                    "tooltip": "是否将上传的文件整理到带时间戳的子文件夹"
+                    "tooltip": "文件夹名称前缀（会自动添加时间戳）\n例如: videos → videos_20241001_123456"
                 }),
             }
         }
@@ -41,18 +37,10 @@ class BatchFileUploader:
     FUNCTION = "organize_uploaded_files"
     CATEGORY = "🔥 Shenglin/素材上传与下载"
 
-    def organize_uploaded_files(self, files, folder_prefix="uploaded", organize_files=True):
+    def organize_uploaded_files(self, upload, folder_prefix="uploaded"):
         """整理上传的文件到子文件夹"""
 
         input_directory = folder_paths.get_input_directory()
-
-        # 如果不需要整理，直接返回input目录
-        if not organize_files:
-            file_path = folder_paths.get_annotated_filepath(files)
-            status_msg = f"📁 文件已上传到: {input_directory}\n"
-            status_msg += f"📄 文件名: {files}\n"
-            status_msg += f"📍 完整路径: {file_path}"
-            return (input_directory, status_msg)
 
         # 1. 创建目标文件夹
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -64,38 +52,34 @@ class BatchFileUploader:
 
         os.makedirs(target_folder, exist_ok=True)
 
-        # 2. 查找最近上传的文件（通过修改时间判断）
-        # 获取所有文件及其修改时间
+        # 2. 查找最近上传的文件（通过修改时间判断，最近10秒内的）
+        import time
+        current_time = time.time()
+
         all_files = []
         for f in os.listdir(input_directory):
             file_path = os.path.join(input_directory, f)
             if os.path.isfile(file_path):
                 mtime = os.path.getmtime(file_path)
-                all_files.append((f, mtime, file_path))
+                # 只获取最近10秒内修改的文件（刚上传的）
+                if current_time - mtime < 10:
+                    all_files.append((f, mtime, file_path))
 
-        # 按修改时间排序，获取最近的文件
+        if not all_files:
+            # 如果没有找到最近上传的文件
+            status_msg = "⚠️ 未检测到新上传的文件\n\n"
+            status_msg += "💡 提示：请先点击📁按钮上传文件，然后立即执行节点"
+            return (target_folder, status_msg)
+
+        # 按修改时间排序
         all_files.sort(key=lambda x: x[1], reverse=True)
-
-        # 获取最近10秒内修改的文件（可能是刚上传的）
-        import time
-        current_time = time.time()
-        recent_files = [f for f in all_files if current_time - f[1] < 10]
-
-        if not recent_files:
-            # 如果没有最近上传的文件，至少移动当前选中的文件
-            file_path = folder_paths.get_annotated_filepath(files)
-            recent_files = [(files, 0, file_path)]
 
         # 3. 移动文件到目标文件夹
         moved_files = []
         failed_files = []
 
-        for filename, mtime, file_path in recent_files:
+        for filename, mtime, file_path in all_files:
             try:
-                if os.path.basename(file_path) == os.path.basename(target_folder):
-                    # 跳过目标文件夹本身
-                    continue
-
                 target_path = os.path.join(target_folder, filename)
 
                 # 移动文件
