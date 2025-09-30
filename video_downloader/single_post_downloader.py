@@ -22,7 +22,11 @@ class SinglePostDownloader:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "url": ("STRING", {"default": "", "multiline": False}),
+                "url": ("STRING", {
+                    "default": "",
+                    "multiline": True,
+                    "tooltip": "单个帖子URL"
+                }),
                 "user_id": ("STRING", {"default": ""}),
                 "secret_key": ("STRING", {"default": ""}),
                 "media_types": (["all", "video", "image", "audio"], {"default": "video"}),

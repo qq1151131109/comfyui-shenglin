@@ -23,7 +23,11 @@ class BatchPostsDownloader:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "url": ("STRING", {"default": "", "multiline": False}),
+                "url": ("STRING", {
+                    "default": "",
+                    "multiline": True,
+                    "tooltip": "主页/播放列表/频道/话题URL"
+                }),
                 "user_id": ("STRING", {"default": ""}),
                 "secret_key": ("STRING", {"default": ""}),
                 "media_types": (["all", "video", "image", "audio"], {"default": "video"}),
