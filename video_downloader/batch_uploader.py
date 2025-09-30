@@ -19,11 +19,13 @@ class BatchFileUploader:
             "required": {
                 "upload": ("STRING", {
                     "default": "",
+                    "multiline": False,
                     "image_upload": True,
                     "tooltip": "点击📁按钮上传文件（支持多选）"
                 }),
                 "folder_prefix": ("STRING", {
                     "default": "uploaded",
+                    "multiline": False,
                     "tooltip": "文件夹前缀，会自动加时间戳\n例如: videos → videos_20241001_123456"
                 }),
             }
