@@ -15,11 +15,12 @@ class BatchFileUploader:
 
     @classmethod
     def INPUT_TYPES(cls):
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {
             "required": {
-                "image": (sorted(files), {"image_upload": True}),
+                "image": ("COMBO", {
+                    "image_upload": True,
+                    "tooltip": "点击📁按钮上传文件"
+                }),
                 "folder_prefix": ("STRING", {
                     "default": "uploaded",
                     "tooltip": "文件夹前缀，会自动加时间戳\n例如: videos → videos_20241001_123456"
