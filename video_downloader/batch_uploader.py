@@ -21,15 +21,13 @@ class BatchFileUploader:
 
         return {
             "required": {
+                "upload": (sorted(files) if files else [""], {
+                    "image_upload": True,
+                    "tooltip": "点击右侧📁按钮上传文件（下拉框可忽略）"
+                }),
                 "folder_prefix": ("STRING", {
                     "default": "uploaded",
-                    "tooltip": "文件夹名称前缀（会自动添加时间戳）\n例如: videos → videos_20241001_123456"
-                }),
-            },
-            "optional": {
-                "upload_trigger": (sorted(files) if files else [""], {
-                    "image_upload": True,
-                    "tooltip": "⚠️ 忽略此下拉框，直接点击📁按钮上传文件即可"
+                    "tooltip": "文件夹前缀，会自动加时间戳\n例如: videos → videos_20241001_123456"
                 }),
             }
         }
@@ -40,12 +38,12 @@ class BatchFileUploader:
     CATEGORY = "🔥 Shenglin/素材上传与下载"
 
     @classmethod
-    def IS_CHANGED(cls, folder_prefix, upload_trigger=None):
+    def IS_CHANGED(cls, upload, folder_prefix):
         # 每次都执行，因为可能有新上传的文件
         import time
         return time.time()
 
-    def organize_uploaded_files(self, folder_prefix="uploaded", upload_trigger=None):
+    def organize_uploaded_files(self, upload, folder_prefix="uploaded"):
         """整理上传的文件到子文件夹"""
 
         input_directory = folder_paths.get_input_directory()
