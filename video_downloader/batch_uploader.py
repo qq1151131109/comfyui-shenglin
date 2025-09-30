@@ -15,15 +15,12 @@ class BatchFileUploader:
 
     @classmethod
     def INPUT_TYPES(cls):
-        # 获取input目录下的所有文件
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-
         return {
             "required": {
-                "upload": (sorted(files) if files else [""], {
+                "upload": ("STRING", {
+                    "default": "",
                     "image_upload": True,
-                    "tooltip": "点击右侧📁按钮上传文件（下拉框可忽略）"
+                    "tooltip": "点击📁按钮上传文件（支持多选）"
                 }),
                 "folder_prefix": ("STRING", {
                     "default": "uploaded",
