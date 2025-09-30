@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const GLASS_ACCENT = "#4F46E5"; // 靛蓝色
 const GLASS_SECONDARY = "#06B6D4"; // 青蓝色
 
@@ -30,8 +24,20 @@ export const GlassmorphismStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,

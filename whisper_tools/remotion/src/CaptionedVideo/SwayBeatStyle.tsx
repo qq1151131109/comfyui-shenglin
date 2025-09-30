@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const BEAT_COLORS = ["#FF1744", "#00E676", "#2196F3", "#FF9800", "#9C27B0", "#00BCD4"];
 
 export const SwayBeatStyle: React.FC<{
@@ -29,8 +23,20 @@ export const SwayBeatStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -49,7 +55,7 @@ export const SwayBeatStyle: React.FC<{
           key={`beat-bar-${i}`}
           style={{
             position: "absolute",
-            width: "4px",
+            width: `${width * 0.004}px`,
             height: `${20 + Math.abs(Math.sin(frame * 0.2 + i * 0.5)) * 40}px`,
             background: `linear-gradient(to top, ${BEAT_COLORS[i % BEAT_COLORS.length]}, ${BEAT_COLORS[i % BEAT_COLORS.length]}80)`,
             left: `${15 + i * 15}%`,
@@ -175,7 +181,7 @@ export const SwayBeatStyle: React.FC<{
                     left: "50%",
                     transform: "translateX(-50%)",
                     width: `${20 + beatScale * 10}px`,
-                    height: "3px",
+                    height: `${height * 0.002}px`,
                     background: `linear-gradient(90deg, transparent, ${beatColor}60, transparent)`,
                     borderRadius: "2px",
                     opacity: 0.7,
@@ -213,8 +219,8 @@ export const SwayBeatStyle: React.FC<{
           key={`beat-ripple-${i}`}
           style={{
             position: "absolute",
-            width: `${40 + i * 20}px`,
-            height: `${40 + i * 20}px`,
+            width: `${width * (0.037 + i * 0.019)}px`,
+            height: `${height * (0.021 + i * 0.010)}px`,
             border: `2px solid ${BEAT_COLORS[i % BEAT_COLORS.length]}30`,
             borderRadius: "50%",
             left: `${60 + i * 10}%`,

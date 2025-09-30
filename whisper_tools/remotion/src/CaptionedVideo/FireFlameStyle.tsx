@@ -14,23 +14,29 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 
 export const FireFlameStyle: React.FC<{
   readonly enterProgress: number;
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -163,7 +169,7 @@ export const FireFlameStyle: React.FC<{
                     style={{
                       position: "absolute",
                       width: `${1 + i}px`,
-                      height: `${2 + i * 2}px`,
+                      height: `${height * (0.001 + i * 0.001)}px`,
                       background: i % 2 === 0 ? "#FF4500" : "#FFD700",
                       borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%",
                       left: `${random(`particle-x-${t.fromMs}-${i}-${Math.floor(frame / 5)}`) * 100}%`,

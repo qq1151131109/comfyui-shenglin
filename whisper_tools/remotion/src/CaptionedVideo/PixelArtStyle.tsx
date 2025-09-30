@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const PIXEL_COLORS = ["#FF6B35", "#00C9A7", "#4ECDC4", "#FFE66D", "#FF6B9D", "#A8E6CF"];
 
 export const PixelArtStyle: React.FC<{
@@ -29,8 +23,20 @@ export const PixelArtStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -182,8 +188,8 @@ export const PixelArtStyle: React.FC<{
                     position: "absolute",
                     top: "-6px",
                     left: "-6px",
-                    width: "6px",
-                    height: "6px",
+                    width: `${width * 0.006}px`,
+                    height: `${height * 0.003}px`,
                     backgroundColor: shouldFlicker ? "#FFFFFF" : pixelColor,
                     animation: `pixel-blink 0.5s steps(2, end) infinite`,
                   } : undefined,

@@ -5,5 +5,6 @@
 
 import { Config } from "@remotion/cli/config";
 
-Config.setVideoImageFormat("jpeg");
+Config.setVideoImageFormat("png");  // 更高质量的图像格式
 Config.setOverwriteOutput(true);
+Config.setConcurrency(1); // 避免并发造成的不一致

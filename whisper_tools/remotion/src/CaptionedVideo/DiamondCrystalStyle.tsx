@@ -116,7 +116,7 @@ export const DiamondCrystalStyle: React.FC<DiamondCrystalStyleProps> = ({
                         left: '50%',
                         top: '50%',
                         width: '2px',
-                        height: `${30 + i * 10}px`,
+                        height: `${height * (0.016 + i * 0.005)}px`,
                         background: `linear-gradient(
                           to bottom,
                           transparent,

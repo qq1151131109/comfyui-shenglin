@@ -13,15 +13,6 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
-
-const DESIRED_FONT_SIZE = 120;
 const ELEGANT_COLORS = ["#E8B4C2", "#B8E6B8", "#E8D4B4", "#B4D4E8", "#D4B4E8", "#B4E8D4"];
 
 export const ElegantShadowStyle: React.FC<{
@@ -29,8 +20,20 @@ export const ElegantShadowStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -49,8 +52,8 @@ export const ElegantShadowStyle: React.FC<{
           key={i}
           style={{
             position: "absolute",
-            width: `${100 + i * 50}px`,
-            height: `${40 + i * 15}px`,
+            width: `${width * (0.09 + i * 0.046)}px`,
+            height: `${height * (0.02 + i * 0.008)}px`,
             background: `radial-gradient(ellipse, ${ELEGANT_COLORS[i % ELEGANT_COLORS.length]}20, transparent)`,
             borderRadius: "50%",
             left: `${20 + i * 20}%`,

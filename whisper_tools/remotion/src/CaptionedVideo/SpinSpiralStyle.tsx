@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const SPIRAL_COLORS = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA726", "#AB47BC", "#66BB6A"];
 
 export const SpinSpiralStyle: React.FC<{
@@ -29,8 +23,20 @@ export const SpinSpiralStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -49,8 +55,8 @@ export const SpinSpiralStyle: React.FC<{
           key={`spiral-${i}`}
           style={{
             position: "absolute",
-            width: `${50 + i * 30}px`,
-            height: `${50 + i * 30}px`,
+            width: `${width * (0.046 + i * 0.028)}px`,
+            height: `${height * (0.026 + i * 0.016)}px`,
             border: `2px solid ${SPIRAL_COLORS[i % SPIRAL_COLORS.length]}40`,
             borderRadius: "50%",
             left: "50%",
@@ -166,8 +172,8 @@ export const SpinSpiralStyle: React.FC<{
                     top: "-15px",
                     left: "50%",
                     transform: `translateX(-50%) rotate(${rotation * 2}deg)`,
-                    width: "8px",
-                    height: "8px",
+                    width: `${width * 0.007}px`,
+                    height: `${height * 0.004}px`,
                     background: spiralColor,
                     borderRadius: "50%",
                     boxShadow: `0 0 10px ${spiralColor}`,
@@ -179,8 +185,8 @@ export const SpinSpiralStyle: React.FC<{
                     bottom: "-15px",
                     right: "20%",
                     transform: `rotate(${-rotation * 1.5}deg)`,
-                    width: "6px",
-                    height: "6px",
+                    width: `${width * 0.006}px`,
+                    height: `${height * 0.003}px`,
                     background: `${spiralColor}80`,
                     borderRadius: "50%",
                   } : undefined,
@@ -193,8 +199,8 @@ export const SpinSpiralStyle: React.FC<{
                       position: "absolute",
                       top: "50%",
                       left: "50%",
-                      width: "60px",
-                      height: "60px",
+                      width: `${width * 0.056}px`,
+                      height: `${height * 0.031}px`,
                       border: `1px dashed ${spiralColor}40`,
                       borderRadius: "50%",
                       transform: `translate(-50%, -50%) rotate(${-rotation}deg)`,
@@ -216,8 +222,8 @@ export const SpinSpiralStyle: React.FC<{
           key={`spiral-particle-${i}`}
           style={{
             position: "absolute",
-            width: "3px",
-            height: "3px",
+            width: `${width * 0.003}px`,
+            height: `${height * 0.002}px`,
             background: SPIRAL_COLORS[i % SPIRAL_COLORS.length],
             borderRadius: "50%",
             left: `${50 + Math.cos(frame * 0.05 + i * 72) * (20 + i * 5)}%`,

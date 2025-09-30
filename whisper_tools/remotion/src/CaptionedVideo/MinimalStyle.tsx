@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const ACCENT_COLOR = "#6C5CE7"; // 优雅的紫色
 const SOFT_GRAY = "#74B9FF"; // 柔和的蓝色
 
@@ -30,8 +24,20 @@ export const MinimalStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -48,8 +54,8 @@ export const MinimalStyle: React.FC<{
       <div
         style={{
           position: "absolute",
-          width: "200px",
-          height: "60px",
+          width: `${width * 0.185}px`,
+          height: `${height * 0.031}px`,
           background: `linear-gradient(90deg, ${ACCENT_COLOR}20, ${SOFT_GRAY}20)`,
           borderRadius: "30px",
           filter: "blur(20px)",
@@ -157,7 +163,7 @@ export const MinimalStyle: React.FC<{
           left: "50%",
           transform: "translateX(-50%)",
           width: `${interpolate(enterProgress, [0, 1], [0, 100])}px`,
-          height: "3px",
+          height: `${height * 0.002}px`,
           background: `linear-gradient(90deg, transparent, ${ACCENT_COLOR}, transparent)`,
           borderRadius: "2px",
           opacity: 0.6,

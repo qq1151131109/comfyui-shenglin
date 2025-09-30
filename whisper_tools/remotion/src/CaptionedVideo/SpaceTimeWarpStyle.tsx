@@ -38,8 +38,8 @@ export const SpaceTimeWarpStyle: React.FC<SpaceTimeWarpStyleProps> = ({
               position: 'absolute',
               left: '50%',
               top: '50%',
-              width: `${50 + i * 40}px`,
-              height: `${50 + i * 40}px`,
+              width: `${width * (0.046 + i * 0.037)}px`,
+              height: `${height * (0.026 + i * 0.021)}px`,
               border: `2px solid rgba(138, 43, 226, ${0.6 - i * 0.05})`,
               borderRadius: '50%',
               transform: `

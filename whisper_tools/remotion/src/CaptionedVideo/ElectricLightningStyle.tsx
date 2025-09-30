@@ -14,15 +14,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const ELECTRIC_COLORS = ["#00FFFF", "#FFFFFF", "#E6E6FA", "#FFFF00", "#00BFFF"];
 
 export const ElectricLightningStyle: React.FC<{
@@ -30,8 +24,20 @@ export const ElectricLightningStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -168,7 +174,7 @@ export const ElectricLightningStyle: React.FC<{
                     key={`spark-${i}`}
                     style={{
                       position: "absolute",
-                      width: "2px",
+                      width: `${width * 0.002}px`,
                       height: `${2 + i}px`,
                       background: ELECTRIC_COLORS[i % ELECTRIC_COLORS.length],
                       left: `${random(`spark-pos-x-${t.fromMs}-${i}-${frame}`) * 100}%`,
@@ -211,8 +217,8 @@ export const ElectricLightningStyle: React.FC<{
           key={`bg-lightning-${i}`}
           style={{
             position: "absolute",
-            width: "2px",
-            height: `${20 + i * 15}px`,
+            width: `${width * 0.002}px`,
+            height: `${height * (0.010 + i * 0.008)}px`,
             background: `linear-gradient(to bottom, 
               transparent, 
               ${ELECTRIC_COLORS[i % ELECTRIC_COLORS.length]}, 
@@ -234,8 +240,8 @@ export const ElectricLightningStyle: React.FC<{
           key={`electric-particle-${i}`}
           style={{
             position: "absolute",
-            width: "1px",
-            height: "1px",
+            width: `${width * 0.001}px`,
+            height: `${height * 0.001}px`,
             background: "#FFFFFF",
             left: `${20 + i * 12 + random(`particle-x-${i}-${Math.floor(frame / 3)}`) * 20}%`,
             top: `${30 + random(`particle-y-${i}-${Math.floor(frame / 4)}`) * 40}%`,

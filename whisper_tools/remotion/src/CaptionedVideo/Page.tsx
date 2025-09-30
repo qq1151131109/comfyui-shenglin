@@ -24,12 +24,12 @@ const container: React.CSSProperties = {
   justifyContent: "center",  // 水平居中对齐
   alignItems: "center",      // 垂直居中对齐
   top: undefined,            // 不设置顶部距离
-  bottom: 200,               // 调整距离底部位置，给字幕更多空间
-  height: 300,               // 增加容器高度，支持多行文字
+  bottom: 350,               // 距离底部350像素（字幕位置）
+  height: 150,               // 容器高度150像素
 };
 
-// 期望的字体大小（像素）- 增加字体大小让文字更突出
-const DESIRED_FONT_SIZE = 150;
+// 期望的字体大小（像素）
+const DESIRED_FONT_SIZE = 120;
 // 当前正在播放词汇的高亮颜色（亮绿色）
 const HIGHLIGHT_COLOR = "#39E508";
 
@@ -49,17 +49,12 @@ export const Page: React.FC<{
   const fittedText = fitText({
     fontFamily,                    // 使用的字体
     text: page.text,              // 要显示的文本内容
-    withinWidth: width * 0.95,    // 增加宽度限制到95%
+    withinWidth: width * 0.9,     // 限制宽度为屏幕宽度的90%
     textTransform: "uppercase",   // 转换为大写字母
   });
 
-  // 计算最终字体大小：优先使用期望大小，只在必要时缩小
-  // 如果适配大小太小（小于80），使用期望大小的一半作为最小值
-  const minFontSize = 80;
-  const fontSize = Math.max(
-    minFontSize,
-    Math.min(DESIRED_FONT_SIZE, fittedText.fontSize)
-  );
+  // 计算最终字体大小：取期望大小和适配大小的较小值
+  const fontSize = Math.min(DESIRED_FONT_SIZE, fittedText.fontSize);
 
   // 返回字幕组件的JSX结构
   return (

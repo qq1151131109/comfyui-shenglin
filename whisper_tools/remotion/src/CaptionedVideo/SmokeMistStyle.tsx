@@ -13,23 +13,29 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 
 export const SmokeMistStyle: React.FC<{
   readonly enterProgress: number;
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -48,8 +54,8 @@ export const SmokeMistStyle: React.FC<{
           key={`smoke-layer-${i}`}
           style={{
             position: "absolute",
-            width: `${100 + i * 50}px`,
-            height: `${60 + i * 20}px`,
+            width: `${width * (0.093 + i * 0.046)}px`,
+            height: `${height * (0.031 + i * 0.010)}px`,
             background: `radial-gradient(ellipse, 
               rgba(128, 128, 128, ${0.1 + i * 0.02}) 0%, 
               rgba(169, 169, 169, ${0.08 + i * 0.01}) 30%, 
@@ -187,8 +193,8 @@ export const SmokeMistStyle: React.FC<{
                     position: "absolute",
                     top: "-8px",
                     right: "10%",
-                    width: "3px",
-                    height: "8px",
+                    width: `${width * 0.003}px`,
+                    height: `${height * 0.004}px`,
                     background: "rgba(169, 169, 169, 0.6)",
                     borderRadius: "50%",
                     filter: "blur(1px)",
@@ -204,8 +210,8 @@ export const SmokeMistStyle: React.FC<{
                       position: "absolute",
                       top: `${-5 - i * 5}px`,
                       left: `${20 + i * 30}%`,
-                      width: `${4 + i * 2}px`,
-                      height: `${8 + i * 4}px`,
+                      width: `${width * (0.004 + i * 0.002)}px`,
+                      height: `${height * (0.004 + i * 0.002)}px`,
                       background: `rgba(169, 169, 169, ${0.4 - i * 0.1})`,
                       borderRadius: "50%",
                       filter: "blur(2px)",
@@ -228,7 +234,7 @@ export const SmokeMistStyle: React.FC<{
           style={{
             position: "absolute",
             width: `${2 + i}px`,
-            height: `${4 + i * 2}px`,
+            height: `${height * (0.002 + i * 0.001)}px`,
             background: `rgba(169, 169, 169, ${0.3 - i * 0.03})`,
             borderRadius: "50%",
             left: `${15 + i * 12}%`,
@@ -246,8 +252,8 @@ export const SmokeMistStyle: React.FC<{
           key={`smoke-cloud-${i}`}
           style={{
             position: "absolute",
-            width: `${30 + i * 20}px`,
-            height: `${15 + i * 10}px`,
+            width: `${width * (0.028 + i * 0.019)}px`,
+            height: `${height * (0.008 + i * 0.005)}px`,
             background: `radial-gradient(ellipse, 
               rgba(128, 128, 128, ${0.2 - i * 0.04}) 0%, 
               rgba(169, 169, 169, ${0.15 - i * 0.03}) 50%, 

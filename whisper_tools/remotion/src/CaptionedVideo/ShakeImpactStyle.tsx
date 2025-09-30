@@ -14,15 +14,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const IMPACT_COLORS = ["#FF3030", "#FFD700", "#FF6B35", "#FF1744", "#FF4081", "#FFC107"];
 
 export const ShakeImpactStyle: React.FC<{
@@ -30,8 +24,20 @@ export const ShakeImpactStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -223,7 +229,7 @@ export const ShakeImpactStyle: React.FC<{
           style={{
             position: "absolute",
             width: "100%",
-            height: "1px",
+            height: `${height * 0.001}px`,
             background: `linear-gradient(90deg, transparent, ${IMPACT_COLORS[i % IMPACT_COLORS.length]}60, transparent)`,
             top: `${45 + i * 8 + random(`line-${i}-${Math.floor(frame / 2)}`) * 10}%`,
             opacity: random(`line-op-${i}-${Math.floor(frame / 4)}`) * 0.7 + 0.3,

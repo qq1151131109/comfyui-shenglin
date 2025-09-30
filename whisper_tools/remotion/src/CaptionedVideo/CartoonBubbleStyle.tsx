@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const BUBBLE_COLORS = [
   "#FF6B9D", // 粉红
   "#4ECDC4", // 青绿
@@ -36,8 +30,20 @@ export const CartoonBubbleStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -56,8 +62,8 @@ export const CartoonBubbleStyle: React.FC<{
           key={i}
           style={{
             position: "absolute",
-            width: `${20 + i * 15}px`,
-            height: `${20 + i * 15}px`,
+            width: `${width * (0.019 + i * 0.014)}px`,
+            height: `${height * (0.010 + i * 0.008)}px`,
             background: `${BUBBLE_COLORS[i % BUBBLE_COLORS.length]}40`,
             borderRadius: "50%",
             left: `${10 + i * 15}%`,

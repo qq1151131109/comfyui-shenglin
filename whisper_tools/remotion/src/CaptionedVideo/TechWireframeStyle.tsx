@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const TECH_COLORS = ["#00D4FF", "#00FF88", "#FF6B00", "#FF0080", "#8000FF", "#FFFF00"];
 
 export const TechWireframeStyle: React.FC<{
@@ -29,8 +23,20 @@ export const TechWireframeStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -64,7 +70,7 @@ export const TechWireframeStyle: React.FC<{
         style={{
           position: "absolute",
           width: "100%",
-          height: "2px",
+          height: `${height * 0.001}px`,
           background: `linear-gradient(90deg, transparent, #00D4FF, transparent)`,
           top: `${50 + Math.sin(frame * 0.03) * 20}%`,
           opacity: 0.7,
@@ -167,8 +173,8 @@ export const TechWireframeStyle: React.FC<{
                     position: "absolute",
                     top: "-4px",
                     left: "-4px",
-                    width: "8px",
-                    height: "8px",
+                    width: `${width * 0.007}px`,
+                    height: `${height * 0.004}px`,
                     border: `2px solid ${techColor}`,
                     background: techColor,
                     animation: "tech-blink 1s ease-in-out infinite",
@@ -179,8 +185,8 @@ export const TechWireframeStyle: React.FC<{
                     position: "absolute",
                     bottom: "-4px",
                     right: "-4px",
-                    width: "8px",
-                    height: "8px",
+                    width: `${width * 0.007}px`,
+                    height: `${height * 0.004}px`,
                     border: `2px solid ${techColor}`,
                     background: "transparent",
                     animation: "tech-blink 1s ease-in-out infinite 0.5s",
@@ -216,7 +222,7 @@ export const TechWireframeStyle: React.FC<{
                       bottom: "-8px",
                       left: "0",
                       right: "0",
-                      height: "2px",
+                      height: `${height * 0.001}px`,
                       background: "rgba(255, 255, 255, 0.2)",
                       overflow: "hidden",
                     }}

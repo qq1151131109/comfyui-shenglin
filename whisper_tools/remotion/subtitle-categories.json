@@ -1,0 +1,85 @@
+{
+  "feminine": [
+    "ElegantShadowStyle",
+    "DiamondCrystalStyle",
+    "GradientRainbowStyle",
+    "RainbowAuroraStyle",
+    "FluidGradientStyle",
+    "GlassmorphismStyle",
+    "MagicSpellStyle",
+    "StarryParticleStyle"
+  ],
+  "masculine": [
+    "CyberpunkHackerStyle",
+    "MetallicStyle",
+    "TechWireframeStyle",
+    "LiquidMetalStyle",
+    "FireFlameStyle",
+    "ElectricLightningStyle",
+    "ShakeImpactStyle",
+    "GlitchStyle"
+  ],
+  "tech": [
+    "TechWireframeStyle",
+    "CyberpunkHackerStyle",
+    "HologramStyle",
+    "QuantumTeleportStyle",
+    "SpaceTimeWarpStyle",
+    "GlitchStyle",
+    "NeonGlowStyle",
+    "NeonBorderStyle"
+  ],
+  "professional": [
+    "MinimalStyle",
+    "ElegantShadowStyle",
+    "Embossed3DStyle",
+    "MetallicStyle"
+  ],
+  "playful": [
+    "CartoonBubbleStyle",
+    "BouncyBallStyle",
+    "PixelArtStyle",
+    "GradientRainbowStyle",
+    "ElasticZoomStyle",
+    "SpinSpiralStyle"
+  ],
+  "trendy": [
+    "NeonGlowStyle",
+    "NeonBorderStyle",
+    "RetroWaveStyle",
+    "GlitchStyle",
+    "AudioWaveStyle",
+    "ElectricLightningStyle",
+    "SwayBeatStyle",
+    "FireFlameStyle"
+  ],
+  "minimalist": [
+    "MinimalStyle",
+    "GlassmorphismStyle",
+    "WaterRippleStyle",
+    "FluidGradientStyle",
+    "ElegantShadowStyle"
+  ],
+  "fantasy": [
+    "MagicSpellStyle",
+    "CosmicGalaxyStyle",
+    "StarryParticleStyle",
+    "SpaceTimeWarpStyle",
+    "QuantumTeleportStyle",
+    "SmokeMistStyle",
+    "DiamondCrystalStyle"
+  ],
+  "retro": [
+    "RetroWaveStyle",
+    "PixelArtStyle",
+    "Embossed3DStyle"
+  ],
+  "nature": [
+    "WaterRippleStyle",
+    "FireFlameStyle",
+    "ElectricLightningStyle",
+    "SmokeMistStyle",
+    "StarryParticleStyle",
+    "CosmicGalaxyStyle"
+  ]
+}

@@ -9,6 +9,7 @@ from .runninghub.runninghub_qwen_advanced import RunningHubQwenAdvanced
 from .runninghub.runninghub_qwen_text_to_image import RunningHubQwenTextToImage
 from .runninghub.runninghub_wan2_image_to_video import RunningHubWan2ImageToVideo
 from .runninghub.runninghub_infinitetalk_video import RunningHubInfiniteTalkVideo
+from .runninghub.batch_infinitetalk_video import BatchInfiniteTalkVideo
 from .runninghub.rh_execute_node import ExecuteNode
 from .runninghub.rh_settings_node import SettingsNode
 from .runninghub.rh_node_info_list import NodeInfoListNode
@@ -45,6 +46,9 @@ from .whisper_tools import WHISPER_NODE_CLASS_MAPPINGS, WHISPER_NODE_DISPLAY_NAM
 # 视频编辑工具集
 from .video_editing_tools import VIDEO_EDITING_NODE_CLASS_MAPPINGS, VIDEO_EDITING_NODE_DISPLAY_NAME_MAPPINGS
 
+# 视频下载工具集（哼哼猫）
+from .video_downloader import NODE_CLASS_MAPPINGS as VIDEO_DOWNLOADER_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as VIDEO_DOWNLOADER_DISPLAY_MAPPINGS
+
 # LLM大语言模型工具集（轻量级集成）
 from .llm_tools import LLM_NODE_CLASS_MAPPINGS, LLM_NODE_DISPLAY_NAME_MAPPINGS, LLM_PARTY_AVAILABLE
 
@@ -56,6 +60,7 @@ NODE_CLASS_MAPPINGS = {
     "RunningHubQwenTextToImage": RunningHubQwenTextToImage,
     "RunningHubWan2ImageToVideo": RunningHubWan2ImageToVideo,
     "RunningHubInfiniteTalkVideo": RunningHubInfiniteTalkVideo,
+    "BatchInfiniteTalkVideo": BatchInfiniteTalkVideo,
     "RHExecuteNode": ExecuteNode,
     "RHSettingsNode": SettingsNode,
     "RHNodeInfoListNode": NodeInfoListNode,
@@ -88,6 +93,9 @@ NODE_CLASS_MAPPINGS = {
     # 视频编辑工具节点
     **VIDEO_EDITING_NODE_CLASS_MAPPINGS,
 
+    # 视频下载工具节点（哼哼猫）
+    **VIDEO_DOWNLOADER_MAPPINGS,
+
     # LLM大语言模型节点（如果可用）
     **(LLM_NODE_CLASS_MAPPINGS if LLM_PARTY_AVAILABLE else {}),
 }
@@ -100,6 +108,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RunningHubQwenTextToImage": "🎨 RunningHub Qwen文生图",
     "RunningHubWan2ImageToVideo": "🎬 RunningHub Wan2.2图生视频",
     "RunningHubInfiniteTalkVideo": "🎭 RunningHub InfiniteTalk数字人",
+    "BatchInfiniteTalkVideo": "🎭 批量InfiniteTalk数字人",
     "RHExecuteNode": "⚙️ RH执行节点",
     "RHSettingsNode": "🔧 RH设置节点",
     "RHNodeInfoListNode": "📋 RH节点信息列表",
@@ -132,6 +141,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 视频编辑工具节点
     **VIDEO_EDITING_NODE_DISPLAY_NAME_MAPPINGS,
 
+    # 视频下载工具节点（哼哼猫）
+    **VIDEO_DOWNLOADER_DISPLAY_MAPPINGS,
+
     # LLM大语言模型节点（如果可用）
     **(LLM_NODE_DISPLAY_NAME_MAPPINGS if LLM_PARTY_AVAILABLE else {}),
 }
@@ -142,7 +154,7 @@ WEB_DIRECTORY = "./video_system/web"
 # 版本信息
 __version__ = "1.0.0"
 __author__ = "Shenglin"
-__description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成、MiniMax TTS、视频合成工具链、RSS内容处理套件、批量工作流执行器、Whisper语音识别、视频编辑工具、LLM大语言模型"
+__description__ = "圣林的ComfyUI自定义节点集合：RunningHub API集成、MiniMax TTS、视频合成工具链、RSS内容处理套件、批量工作流执行器、Whisper语音识别、视频编辑工具、视频下载工具（哼哼猫）、LLM大语言模型"
 
 # ComfyUI必需的导出
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
@@ -151,12 +163,13 @@ print("🎉 ComfyUI Shenglin 节点集合加载完成!")
 llm_count = len(LLM_NODE_CLASS_MAPPINGS) if LLM_PARTY_AVAILABLE else 0
 whisper_count = len(WHISPER_NODE_CLASS_MAPPINGS)
 video_edit_count = len(VIDEO_EDITING_NODE_CLASS_MAPPINGS)
+video_downloader_count = len(VIDEO_DOWNLOADER_MAPPINGS)
 
-print(f"📝 RunningHub节点: 14个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个 | 批量工作流节点: 1个")
-print(f"📰 RSS处理节点: 11个 | 🎤 Whisper节点: {whisper_count}个 | ✂️ 视频编辑节点: {video_edit_count}个")
+print(f"📝 RunningHub节点: 15个 | MiniMax TTS节点: 3个 | 视频系统节点: 3个 | 批量工作流节点: 1个")
+print(f"📰 RSS处理节点: 11个 | 🎤 Whisper节点: {whisper_count}个 | ✂️ 视频编辑节点: {video_edit_count}个 | 📥 视频下载节点: {video_downloader_count}个")
 if LLM_PARTY_AVAILABLE:
     print(f"🤖 LLM节点: {llm_count}个 (已集成)")
 else:
     print("🤖 LLM节点: 未安装 (需要comfyui_LLM_party)")
 print(f"🚀 总计: {len(NODE_CLASS_MAPPINGS)} 个自定义节点")
-print("🎬 完整AI工作流生态: 图生视频 + 语音识别 + 智能分析 + 视频编辑 + 大语言模型")
+print("🎬 完整AI工作流生态: 图生视频 + 语音识别 + 智能分析 + 视频编辑 + 视频下载 + 大语言模型")

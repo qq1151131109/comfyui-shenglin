@@ -20,19 +20,17 @@ import { MinimalStyle } from "./MinimalStyle";
 
 export const minimalVideoSchema = z.object({
   src: z.string(),
-  durationInSeconds: z.number().optional(),
 });
 
 export const calculateMinimalVideoMetadata: CalculateMetadataFunction<
   z.infer<typeof minimalVideoSchema>
 > = async ({ props }) => {
   const fps = 30;
-  // 使用传入的时长或默认时长
-  const durationInSeconds = props.durationInSeconds || 15.0;
-  
+  const metadata = await getVideoMetadata(props.src);
+
   return {
     fps,
-    durationInFrames: Math.floor(durationInSeconds * fps),
+    durationInFrames: Math.floor(metadata.durationInSeconds * fps),
   };
 };
 
@@ -48,24 +46,22 @@ const SWITCH_CAPTIONS_EVERY_MS = 1200;
 
 export const MinimalVideo: React.FC<{
   src: string;
-  durationInSeconds?: number;
-}> = ({ src, durationInSeconds }) => {
+}> = ({ src }) => {
   const [subtitles, setSubtitles] = useState<Caption[]>([]);
   const [handle] = useState(() => delayRender());
   const { fps } = useVideoConfig();
 
-  // 确定视频源和字幕文件路径
-  const videoSrc = src;
-  const subtitlesFile = src.replace(/.mp4$/, ".json").replace(/.mkv$/, ".json").replace(/.mov$/, ".json").replace(/.webm$/, ".json");
+  const subtitlesFile = src
+    .replace(/.mp4$/, ".json")
+    .replace(/.mkv$/, ".json")
+    .replace(/.mov$/, ".json")
+    .replace(/.webm$/, ".json");
 
   const fetchSubtitles = useCallback(async () => {
     try {
       await loadFont();
-      
-      // 使用fetch方式获取字幕文件
       const res = await fetch(subtitlesFile);
       const data = (await res.json()) as Caption[];
-      
       setSubtitles(data);
       continueRender(handle);
     } catch (e) {
@@ -99,7 +95,7 @@ export const MinimalVideo: React.FC<{
           style={{
             objectFit: "cover",
           }}
-          src={videoSrc}
+          src={src}
         />
       </AbsoluteFill>
       {pages.map((page, index) => {

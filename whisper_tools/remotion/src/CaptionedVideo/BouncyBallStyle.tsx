@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const BOUNCE_COLORS = ["#FF4757", "#2ED573", "#3742FA", "#FF6348", "#A4B0BE", "#FFA502"];
 
 export const BouncyBallStyle: React.FC<{
@@ -29,8 +23,20 @@ export const BouncyBallStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -157,7 +163,7 @@ export const BouncyBallStyle: React.FC<{
                     left: "50%",
                     transform: "translateX(-50%)",
                     width: `${Math.max(20, 60 - bounceY)}px`,
-                    height: "4px",
+                    height: `${height * 0.002}px`,
                     background: `radial-gradient(ellipse, ${bounceColor}40, transparent)`,
                     borderRadius: "50%",
                     filter: "blur(2px)",
@@ -177,8 +183,8 @@ export const BouncyBallStyle: React.FC<{
           key={`bounce-particle-${i}`}
           style={{
             position: "absolute",
-            width: "4px",
-            height: "4px",
+            width: `${width * 0.004}px`,
+            height: `${height * 0.002}px`,
             background: BOUNCE_COLORS[i % BOUNCE_COLORS.length],
             borderRadius: "50%",
             left: `${20 + i * 25}%`,

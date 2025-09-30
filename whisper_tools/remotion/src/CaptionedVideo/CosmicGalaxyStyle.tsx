@@ -64,8 +64,8 @@ export const CosmicGalaxyStyle: React.FC<CosmicGalaxyStyleProps> = ({
               position: 'absolute',
               left: `${(i * 17 + frame * 0.02) % 120 - 10}%`,
               top: `${(i * 23 + Math.sin(frame * 0.01 + i) * 20) % 120 - 10}%`,
-              width: `${60 + i * 20}px`,
-              height: `${40 + i * 15}px`,
+              width: `${width * (0.056 + i * 0.019)}px`,
+              height: `${height * (0.021 + i * 0.008)}px`,
               background: `radial-gradient(
                 ellipse,
                 rgba(${100 + i * 20}, ${150 + i * 10}, 255, ${0.1 + Math.sin(frame * 0.02 + i) * 0.05}),

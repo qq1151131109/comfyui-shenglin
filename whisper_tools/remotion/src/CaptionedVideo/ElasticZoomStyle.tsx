@@ -13,15 +13,9 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 const ELASTIC_COLORS = ["#E74C3C", "#3498DB", "#2ECC71", "#F39C12", "#9B59B6", "#1ABC9C"];
 
 export const ElasticZoomStyle: React.FC<{
@@ -29,8 +23,20 @@ export const ElasticZoomStyle: React.FC<{
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -190,8 +196,8 @@ export const ElasticZoomStyle: React.FC<{
           key={`elastic-ripple-${i}`}
           style={{
             position: "absolute",
-            width: `${30 + i * 20}px`,
-            height: `${20 + i * 10}px`,
+            width: `${width * (0.028 + i * 0.019)}px`,
+            height: `${height * (0.010 + i * 0.005)}px`,
             border: `2px solid ${ELASTIC_COLORS[i % ELASTIC_COLORS.length]}40`,
             borderRadius: "50%",
             left: `${30 + i * 20}%`,
@@ -208,8 +214,8 @@ export const ElasticZoomStyle: React.FC<{
           key={`elastic-particle-${i}`}
           style={{
             position: "absolute",
-            width: "5px",
-            height: "5px",
+            width: `${width * 0.005}px`,
+            height: `${height * 0.003}px`,
             background: ELASTIC_COLORS[i % ELASTIC_COLORS.length],
             borderRadius: "50%",
             left: `${15 + i * 20}%`,

@@ -13,23 +13,29 @@ import { TikTokPage } from "@remotion/captions";
 
 const fontFamily = TheBoldFont;
 
-const container: React.CSSProperties = {
-  justifyContent: "center",
-  alignItems: "center",
-  top: undefined,
-  bottom: 350,
-  height: 150,
-};
 
-const DESIRED_FONT_SIZE = 120;
+
+
 
 export const WaterRippleStyle: React.FC<{
   readonly enterProgress: number;
   readonly page: TikTokPage;
 }> = ({ enterProgress, page }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const timeInMs = (frame / fps) * 1000;
+
+  // 响应式字体大小
+  const DESIRED_FONT_SIZE = Math.min(width, height) * 0.11;
+
+  // 响应式容器
+  const container: React.CSSProperties = {
+    justifyContent: "center",
+    alignItems: "center",
+    top: undefined,
+    bottom: height * 0.18,
+    height: height * 0.08,
+  };
 
   const fittedText = fitText({
     fontFamily,
@@ -165,8 +171,8 @@ export const WaterRippleStyle: React.FC<{
                     position: "absolute",
                     top: "-6px",
                     right: "10%",
-                    width: "4px",
-                    height: "6px",
+                    width: `${width * 0.004}px`,
+                    height: `${height * 0.003}px`,
                     background: "rgba(135, 206, 235, 0.8)",
                     borderRadius: "50% 50% 50% 50% / 40% 40% 60% 60%",
                     animation: "water-drop 2s ease-in-out infinite",
@@ -181,8 +187,8 @@ export const WaterRippleStyle: React.FC<{
                       position: "absolute",
                       top: "50%",
                       left: "50%",
-                      width: `${30 + i * 20}px`,
-                      height: `${20 + i * 15}px`,
+                      width: `${width * (0.028 + i * 0.019)}px`,
+                      height: `${height * (0.010 + i * 0.008)}px`,
                       border: `1px solid rgba(135, 206, 235, ${(1 - i * 0.3) * (0.5 + rippleIntensity * 0.5)})`,
                       borderRadius: "50%",
                       transform: `translate(-50%, -50%) scale(${0.5 + rippleIntensity * (1 + i * 0.3)})`,
@@ -205,8 +211,8 @@ export const WaterRippleStyle: React.FC<{
           key={`water-bubble-${i}`}
           style={{
             position: "absolute",
-            width: `${3 + i * 2}px`,
-            height: `${3 + i * 2}px`,
+            width: `${width * (0.003 + i * 0.002)}px`,
+            height: `${height * (0.002 + i * 0.001)}px`,
             background: `radial-gradient(circle at 30% 30%, 
               rgba(255, 255, 255, 0.8) 0%, 
               rgba(135, 206, 235, 0.6) 50%, 
@@ -227,8 +233,8 @@ export const WaterRippleStyle: React.FC<{
           key={`water-reflection-${i}`}
           style={{
             position: "absolute",
-            width: `${50 + i * 30}px`,
-            height: "2px",
+            width: `${width * (0.046 + i * 0.028)}px`,
+            height: `${height * 0.001}px`,
             background: `linear-gradient(90deg, 
               transparent, 
               rgba(255, 255, 255, ${0.3 + i * 0.1}), 
